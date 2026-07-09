@@ -152,6 +152,8 @@ func (m model) paneModeLoading(mode int) bool {
 		return m.loadingList
 	case modeDetail:
 		return m.detailLoading
+	case modeJobs:
+		return m.detailLoading
 	case modeLogs:
 		return m.logsLoading
 	}
@@ -418,6 +420,11 @@ func (m model) viewLogSplits() string {
 	return m.renderLogSplitNode(m.logSplitRoot, width, height)
 }
 
+func (m model) renderSinglePane(body string) string {
+	width, height := m.logSplitAreaSize()
+	return renderPaneBox(body, true, m.paneModeLoading(m.mode), max(1, width-2), max(1, height-2))
+}
+
 func (m model) renderLogSplitNode(node *logSplitNode, width, height int) string {
 	if node == nil || width <= 0 || height <= 0 {
 		return ""
@@ -669,16 +676,20 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 }
 
 func renderPaneBox(body string, active bool, loading bool, width, height int) string {
-	borderColor := lipgloss.Color("238")
+	borderColor := paneBorderColor
+	border := lipgloss.RoundedBorder()
+	if active {
+		border = lipgloss.ThickBorder()
+	}
 	if loading {
-		borderColor = lipgloss.Color("220")
+		borderColor = paneBorderLoadingColor
 	} else if active {
-		borderColor = lipgloss.Color("45")
+		borderColor = paneBorderActiveColor
 	}
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
-		Border(lipgloss.RoundedBorder()).
+		Border(border).
 		BorderForeground(borderColor).
 		Render(body)
 }

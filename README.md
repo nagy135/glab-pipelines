@@ -73,7 +73,12 @@ Environment variables:
 GLAB_TUI_LIMIT=10          # newest pipelines to show
 GLAB_TUI_REFRESH=20        # pipeline detail refresh interval in seconds
 GLAB_TUI_LOG_REFRESH=3     # job log refresh interval in seconds
+GLAB_TUI_THEME=default     # startup color theme override
 ```
+
+Theme picker selections are saved to `~/.local/share/glab-pipelines/theme`.
+
+Themes: `default`, `gruvbox-material`, `tokyo-night`, `catppuccin`, `gruvbox`, `nord`, `dracula`, `kanagawa`, `everforest`, `rose-pine`, `onedark`, `solarized-dark`, `ayu`, `material`, `nightfox`, `sonokai`, `moonfly`, `oceanic-next`, `palenight`, `monokai`, `papercolor`, `edge`.
 
 ## Key Bindings
 
@@ -85,6 +90,7 @@ Pipeline list:
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `x`: close focused split
+- `t`: open theme picker
 - `r`: refresh
 - `q`: quit
 
@@ -96,6 +102,7 @@ Pipeline detail:
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `x`: close focused split
+- `t`: open theme picker
 - `S`: start or retry selected job when available
 - `c`: cancel selected job when available
 - `l`: open logs for the selected job in the focused split
@@ -109,6 +116,7 @@ Jobs list:
 - `s`: start or retry selected job when available
 - `c`: cancel selected job when available
 - `l`: open logs
+- `t`: open theme picker
 - `r`: refresh
 - `q`: go back
 
@@ -123,6 +131,7 @@ Logs:
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `x`: close focused split
 - `/`: search logs incrementally
+- `t`: open theme picker
 - `n`: next job, or next search match after confirming search
 - `N`: previous search match after confirming search
 - `r`: reload

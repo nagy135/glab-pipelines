@@ -12,6 +12,9 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.Type == tea.KeyCtrlC {
 		return m, tea.Quit
 	}
+	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && !(m.mode == modeLogs && m.logSearchMode) {
+		return m.openThemePicker(), tea.ClearScreen
+	}
 	switch m.mode {
 	case modePipelines:
 		return m.handlePipelineKey(key)
@@ -23,6 +26,52 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmKey(key)
 	case modeLogs:
 		return m.handleLogsKey(key)
+	case modeTheme:
+		return m.handleThemeKey(key)
+	}
+	return m, nil
+}
+
+func (m model) openThemePicker() model {
+	m.themeBackMode = m.mode
+	m.themeCursor = themeIndex(m.themeName)
+	m.mode = modeTheme
+	m.message = ""
+	return m
+}
+
+func (m model) closeThemePicker() model {
+	if m.themeBackMode == 0 {
+		m.themeBackMode = modePipelines
+	}
+	m.mode = m.themeBackMode
+	m.themeBackMode = 0
+	m.message = ""
+	return m
+}
+
+func (m model) handleThemeKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "q", "esc":
+		return m.closeThemePicker(), tea.ClearScreen
+	case "up", "k":
+		m.themeCursor = moveUp(m.themeCursor, len(themeOptions))
+	case "down", "j":
+		m.themeCursor = moveDown(m.themeCursor, len(themeOptions))
+	case "enter":
+		theme := themeOptions[m.themeCursor]
+		applied, err := applyTheme(theme.Name)
+		if err != nil {
+			m.message = err.Error()
+			return m, nil
+		}
+		m.themeName = applied
+		m = m.closeThemePicker()
+		m.message = "theme: " + applied
+		if err := saveThemeName(applied); err != nil {
+			m.message += " (not saved)"
+		}
+		return m, tea.ClearScreen
 	}
 	return m, nil
 }
@@ -173,6 +222,7 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 	case "r", "R":
 		m.message = "refreshing jobs..."
+		m.detailLoading = true
 		return m, fetchDetailCmd(m.repo, m.detailID)
 	case "up", "k":
 		m.jobsCursor = moveUp(m.jobsCursor, len(m.detail.DisplayJobs))

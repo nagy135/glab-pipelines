@@ -12,6 +12,7 @@ const (
 	modeJobs
 	modeConfirm
 	modeLogs
+	modeTheme
 )
 
 const (
@@ -138,6 +139,9 @@ type model struct {
 	activeLogPane    int
 	nextLogPaneID    int
 	logSplitRoot     *logSplitNode
+	themeName        string
+	themeCursor      int
+	themeBackMode    int
 }
 
 type pipelinesMsg struct {

@@ -24,6 +24,17 @@ func main() {
 }
 
 func initialModel(args []string) (model, error) {
+	themeValue := os.Getenv("GLAB_TUI_THEME")
+	if themeValue == "" {
+		if savedTheme, ok := loadSavedThemeName(); ok {
+			themeValue = savedTheme
+		}
+	}
+	themeName, err := applyTheme(themeValue)
+	if err != nil {
+		return model{}, err
+	}
+
 	m := model{
 		status:      "active",
 		limit:       envInt("GLAB_TUI_LIMIT", 10),
@@ -32,6 +43,8 @@ func initialModel(args []string) (model, error) {
 		mode:        modePipelines,
 		loadingList: true,
 		listRequest: 1,
+		themeName:   themeName,
+		themeCursor: themeIndex(themeName),
 	}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -67,15 +80,16 @@ Usage:
   glab-pipelines -R group/proj active
 
 Environment:
-  GLAB_TUI_LIMIT=10              newest pipelines to show
-  GLAB_TUI_REFRESH=20            detail refresh interval in seconds
-  GLAB_TUI_LOG_REFRESH=3         log refresh interval in seconds
+	GLAB_TUI_LIMIT=10              newest pipelines to show
+	GLAB_TUI_REFRESH=20            detail refresh interval in seconds
+	GLAB_TUI_LOG_REFRESH=3         log refresh interval in seconds
+	GLAB_TUI_THEME=gruvbox-material color theme override; picker saves to ~/.local/share/glab-pipelines/theme
 
 Keys:
-  Pipeline list: j/k or up/down move, enter details, s/v split, ctrl+hjkl focus, x close split, r refresh, q quit
-  Detail: j/k or up/down move jobs, s/v split, ctrl+hjkl focus, x close split, l logs in focused split, S start/retry, c cancel, r refresh, q back, o open
-  Jobs: j/k or up/down move, s start/retry, c cancel, l logs, r refresh, q back
-  Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, s/v split, ctrl+hjkl focus, x close split, / search, n next job or next match, N previous match, r reload, q back`)
+  Pipeline list: j/k or up/down move, enter details, s/v split, ctrl+hjkl focus, x close split, t theme, r refresh, q quit
+  Detail: j/k or up/down move jobs, s/v split, ctrl+hjkl focus, x close split, t theme, l logs in focused split, S start/retry, c cancel, r refresh, q back, o open
+  Jobs: j/k or up/down move, s start/retry, c cancel, l logs, t theme, r refresh, q back
+  Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, s/v split, ctrl+hjkl focus, x close split, / search, t theme, n next job or next match, N previous match, r reload, q back`)
 }
 
 func envInt(name string, fallback int) int {

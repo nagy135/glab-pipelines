@@ -201,15 +201,15 @@ func (m model) configureLogViewport() model {
 		if !ok {
 			return m
 		}
-		height := rect.Height - logPaneHeaderHeight
+		height := rect.Height - 2 - logPaneHeaderHeight
 		if height < 1 {
 			height = 1
 		}
-		m.logsViewport.Width = max(1, rect.Width)
+		m.logsViewport.Width = max(1, rect.Width-2)
 		m.logsViewport.Height = height
 		return m
 	}
-	height := m.height - 4
+	height := m.height - 5
 	if m.message != "" {
 		height--
 	}
@@ -222,7 +222,7 @@ func (m model) configureLogViewport() model {
 	if height < 1 {
 		height = 1
 	}
-	m.logsViewport.Width = m.width
+	m.logsViewport.Width = max(1, m.width-2)
 	m.logsViewport.Height = height
 	return m
 }
