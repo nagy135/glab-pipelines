@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-SRC="$ROOT/src"
 CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/glab-pipelines"
 BIN="$CACHE_ROOT/glab-pipelines"
 
@@ -18,11 +17,11 @@ else
       needs_rebuild=1
       break
     fi
-  done < <(find "$SRC" -type f \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) -print0)
+  done < <(find "$ROOT" -type f \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) -print0)
 fi
 
 if [[ "$needs_rebuild" -eq 1 ]]; then
-  (cd "$SRC" && go mod tidy && go build -o "$BIN" .)
+  (cd "$ROOT" && go mod tidy && go build -o "$BIN" ./cmd/glab-pipelines)
 fi
 
 exec "$BIN" "$@"
