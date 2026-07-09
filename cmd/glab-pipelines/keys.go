@@ -148,6 +148,7 @@ func (m model) openLogs(job job, backMode int) (tea.Model, tea.Cmd) {
 	m.logBackMode = backMode
 	m.logs = ""
 	m.logsLoading = true
+	m = m.clearLogSearch()
 	m.message = ""
 	m.mode = modeLogs
 	m.logsViewport = viewport.New(max(1, m.width), max(1, m.height-4))
@@ -157,6 +158,9 @@ func (m model) openLogs(job job, backMode int) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.logSearchMode {
+		return m.handleLogSearchKey(key)
+	}
 	switch key.String() {
 	case "q", "esc":
 		if m.logBackMode == 0 {
@@ -171,10 +175,13 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.logsLoading = true
 		m.message = ""
+		m = m.configureLogViewport()
 		if m.logs == "" {
 			m.logsViewport.SetContent("loading logs...")
 		}
 		return m, fetchLogsCmd(m.repo, *m.logJob)
+	case "/":
+		return m.beginLogSearch(), nil
 	case "g":
 		m.logsViewport.GotoTop()
 		return m, nil
@@ -182,12 +189,19 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.logsViewport.GotoBottom()
 		return m, nil
 	case "n":
+		if m.logSearchActive {
+			return m.jumpLogSearchMatch(1), nil
+		}
 		if m.detail != nil && len(m.detail.DisplayJobs) > 0 {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, 1)
 		}
 		m.mode = modeDetail
 		m.message = ""
 		return m, tea.ClearScreen
+	case "N":
+		if m.logSearchActive {
+			return m.jumpLogSearchMatch(-1), nil
+		}
 	}
 	var cmd tea.Cmd
 	m.logsViewport, cmd = m.logsViewport.Update(key)

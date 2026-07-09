@@ -44,13 +44,13 @@ func (m model) viewPipelines() string {
 		b.WriteString(yellowStyle.Render("no pipelines found") + "\n")
 		return b.String()
 	}
-	b.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-28s %-10s %-14s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "UPDATED")) + "\n")
+	b.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-16s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "UPDATED", "TITLE")) + "\n")
 	for i, p := range m.list {
 		sha := p.SHA
 		if len(sha) > 8 {
 			sha = sha[:8]
 		}
-		line := fmt.Sprintf("%-10s %-16s %-28s %-10s %-14s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 28), sha, truncate(p.Source, 14), shortTime(p.UpdatedOrCreated()))
+		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-16s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), shortTime(p.UpdatedOrCreated()), truncate(p.CommitTitle, 72))
 		line = colorStatusInLine(line, p.Status)
 		if i == m.listCursor {
 			b.WriteString(selectedStyle.Render(line) + "\n")
@@ -149,12 +149,19 @@ func (m model) viewLogs() string {
 		status = m.logJob.Status
 	}
 	b.WriteString(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs", "Logs") + " " + metaPill("job", truncate(name, 28)) + " " + metaPill("status", status) + " " + metaPill("live", m.logRefresh.String()) + "\n")
-	b.WriteString(hintBar(keyHint("j/k", "scroll"), keyHint("pgup/pgdn", "page"), keyHint("g", "top"), keyHint("G", "bottom"), keyHint("n", "next job"), keyHint("r", "reload"), keyHint("q", "back")) + "\n")
+	nHint := keyHint("n", "next job")
+	if m.logSearchActive {
+		nHint = keyHint("n/N", "match")
+	}
+	b.WriteString(hintBar(keyHint("j/k", "scroll"), keyHint("pgup/pgdn", "page"), keyHint("g/G", "top/bottom"), keyHint("/", "search"), nHint, keyHint("r", "reload"), keyHint("q", "back")) + "\n")
 	if m.message != "" {
 		b.WriteString(yellowStyle.Render(m.message) + "\n")
 	}
 	if m.logsLoading {
 		b.WriteString(dimStyle.Render("loading...") + "\n")
+	}
+	if status := m.logSearchStatus(); status != "" {
+		b.WriteString(status + "\n")
 	}
 	b.WriteString("\n")
 	b.WriteString(m.logsViewport.View())

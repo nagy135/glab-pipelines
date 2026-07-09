@@ -17,14 +17,20 @@ const (
 var activeStatuses = []string{"running", "pending", "created", "waiting_for_resource", "preparing", "manual", "scheduled"}
 
 type pipeline struct {
-	ID        int    `json:"id"`
-	Status    string `json:"status"`
-	Ref       string `json:"ref"`
-	SHA       string `json:"sha"`
-	Source    string `json:"source"`
-	UpdatedAt string `json:"updated_at"`
-	CreatedAt string `json:"created_at"`
-	WebURL    string `json:"web_url"`
+	ID          int        `json:"id"`
+	Status      string     `json:"status"`
+	Ref         string     `json:"ref"`
+	SHA         string     `json:"sha"`
+	Source      string     `json:"source"`
+	UpdatedAt   string     `json:"updated_at"`
+	CreatedAt   string     `json:"created_at"`
+	WebURL      string     `json:"web_url"`
+	Commit      commitInfo `json:"commit"`
+	CommitTitle string     `json:"commit_title,omitempty"`
+}
+
+type commitInfo struct {
+	Title string `json:"title"`
 }
 
 type job struct {
@@ -59,31 +65,42 @@ type pendingAction struct {
 	Verb     string
 }
 
+type logSearchMatch struct {
+	Line  int
+	Start int
+	End   int
+}
+
 type model struct {
-	repo            string
-	status          string
-	limit           int
-	refresh         time.Duration
-	logRefresh      time.Duration
-	mode            int
-	width           int
-	height          int
-	message         string
-	loadingList     bool
-	listRequest     int
-	list            []pipeline
-	listCursor      int
-	detailID        int
-	detail          *detail
-	jobsCursor      int
-	pending         *pendingAction
-	confirmText     string
-	confirmBackMode int
-	logJob          *job
-	logBackMode     int
-	logs            string
-	logsLoading     bool
-	logsViewport    viewport.Model
+	repo             string
+	status           string
+	limit            int
+	refresh          time.Duration
+	logRefresh       time.Duration
+	mode             int
+	width            int
+	height           int
+	message          string
+	loadingList      bool
+	listRequest      int
+	list             []pipeline
+	listCursor       int
+	detailID         int
+	detail           *detail
+	jobsCursor       int
+	pending          *pendingAction
+	confirmText      string
+	confirmBackMode  int
+	logJob           *job
+	logBackMode      int
+	logs             string
+	logsLoading      bool
+	logsViewport     viewport.Model
+	logSearchMode    bool
+	logSearchActive  bool
+	logSearchQuery   string
+	logSearchMatches []logSearchMatch
+	logSearchIndex   int
 }
 
 type pipelinesMsg struct {

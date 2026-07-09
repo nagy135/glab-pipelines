@@ -20,7 +20,7 @@ func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 	}
 	seen := map[int]bool{}
 	for _, st := range statuses {
-		query := fmt.Sprintf("per_page=%d", limit)
+		query := fmt.Sprintf("order_by=id&sort=desc&per_page=%d", limit)
 		if st != "" {
 			query = "status=" + st + "&" + query
 		}
@@ -41,12 +41,47 @@ func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 		}
 	}
 	sort.Slice(all, func(i, j int) bool {
-		return parseAPITime(all[i].UpdatedOrCreated()).After(parseAPITime(all[j].UpdatedOrCreated()))
+		return all[i].ID > all[j].ID
 	})
 	if len(all) > limit {
 		all = all[:limit]
 	}
+	enrichPipelineCommitTitles(repo, all)
+	savePipelineCache(repo, status, limit, all)
 	return all, nil
+}
+
+func enrichPipelineCommitTitles(repo string, pipelines []pipeline) {
+	titles := map[string]string{}
+	for i := range pipelines {
+		if pipelines[i].Commit.Title != "" {
+			pipelines[i].CommitTitle = pipelines[i].Commit.Title
+			continue
+		}
+		if pipelines[i].CommitTitle != "" {
+			pipelines[i].Commit.Title = pipelines[i].CommitTitle
+			continue
+		}
+		sha := pipelines[i].SHA
+		if sha == "" {
+			continue
+		}
+		if title, ok := titles[sha]; ok {
+			pipelines[i].CommitTitle = title
+			continue
+		}
+		out, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/repository/commits/%s", sha))
+		if err != nil {
+			continue
+		}
+		var commit commitInfo
+		if err := json.Unmarshal(out, &commit); err != nil {
+			continue
+		}
+		titles[sha] = commit.Title
+		pipelines[i].Commit.Title = commit.Title
+		pipelines[i].CommitTitle = commit.Title
+	}
 }
 
 func fetchDetail(repo string, pid int) (detail, error) {

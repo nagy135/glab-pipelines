@@ -48,6 +48,10 @@ func initialModel(args []string) (model, error) {
 			m.status = args[i]
 		}
 	}
+	if cached, ok := loadPipelineCache(m.repo, m.status, m.limit); ok {
+		m.list = cached
+		m.message = "refreshing pipelines..."
+	}
 	return m, nil
 }
 
@@ -71,7 +75,7 @@ Keys:
   Pipeline list: j/k or up/down move, enter details, r refresh, q quit
   Detail: j/k or up/down move jobs, p jobs list, s start/retry, c cancel, l logs, r refresh, q back, o open
   Jobs: j/k or up/down move, s start/retry, c cancel, l logs, r refresh, q back
-  Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, n next job, r reload, q back`)
+  Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, / search, n next job or next match, N previous match, r reload, q back`)
 }
 
 func envInt(name string, fallback int) int {

@@ -74,6 +74,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logsLoading = false
 		if msg.err != nil {
 			m.message = msg.err.Error()
+			m = m.configureLogViewport()
 			if m.logs == "" {
 				m.logsViewport.SetContent(redStyle.Render(msg.err.Error()))
 			}
@@ -84,7 +85,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if strings.TrimSpace(m.logs) == "" {
 			m.logs = "(empty log)"
 		}
-		m.logsViewport.SetContent(m.logs)
+		m = m.configureLogViewport()
+		m.logsViewport.SetContent(m.renderLogContent())
+		if m.logSearchQuery != "" {
+			m = m.refreshLogSearchMatches()
+			m.logsViewport.SetContent(m.renderLogContent())
+			m.logsViewport.SetYOffset(yOffset)
+			return m, nil
+		}
 		if wasBottom {
 			m.logsViewport.GotoBottom()
 		} else {
@@ -111,6 +119,12 @@ func (m model) configureLogViewport() model {
 	}
 	height := m.height - 4
 	if m.message != "" {
+		height--
+	}
+	if m.logsLoading {
+		height--
+	}
+	if m.logSearchMode || m.logSearchQuery != "" {
 		height--
 	}
 	if height < 1 {

@@ -110,7 +110,9 @@ Logs:
 - `pgup`/`pgdn`: page
 - `g`: top
 - `G`: bottom
-- `n`: next job
+- `/`: search logs incrementally
+- `n`: next job, or next search match after confirming search
+- `N`: previous search match after confirming search
 - `r`: reload
 - `q`: go back
 
