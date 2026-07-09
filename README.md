@@ -62,7 +62,7 @@ glab-pipelines -R group/proj active
 If you run with `go run`, pass arguments after the package path:
 
 ```sh
-go run ./cmd/glab-pipelines -- -R group/project active
+go run ./cmd/glab-pipelines -R group/project active
 ```
 
 ## Configuration
