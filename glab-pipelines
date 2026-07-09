@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+SRC="$ROOT/src"
+CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/glab-pipelines"
+BIN="$CACHE_ROOT/glab-pipelines"
+
+command -v go >/dev/null || { echo "go not found" >&2; exit 1; }
+mkdir -p "$CACHE_ROOT"
+
+needs_rebuild=0
+if [[ ! -x "$BIN" ]]; then
+  needs_rebuild=1
+else
+  while IFS= read -r -d '' file; do
+    if [[ "$file" -nt "$BIN" ]]; then
+      needs_rebuild=1
+      break
+    fi
+  done < <(find "$SRC" -type f \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) -print0)
+fi
+
+if [[ "$needs_rebuild" -eq 1 ]]; then
+  (cd "$SRC" && go mod tidy && go build -o "$BIN" .)
+fi
+
+exec "$BIN" "$@"
