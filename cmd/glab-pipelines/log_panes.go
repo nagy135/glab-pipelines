@@ -9,6 +9,59 @@ import (
 
 const logPaneHeaderHeight = 2
 
+type borderOption struct {
+	Name   string
+	Border lipgloss.Border
+}
+
+var (
+	activePaneBorderName = "double"
+	borderOptions        = []borderOption{
+		{Name: "normal", Border: lipgloss.NormalBorder()},
+		{Name: "rounded", Border: lipgloss.RoundedBorder()},
+		{Name: "thick", Border: lipgloss.ThickBorder()},
+		{Name: "double", Border: lipgloss.DoubleBorder()},
+	}
+)
+
+func applyActiveBorder(name string) string {
+	normalized := normalizeBorderName(name)
+	if normalized == "" {
+		normalized = activePaneBorderName
+	}
+	for _, option := range borderOptions {
+		if option.Name == normalized {
+			activePaneBorderName = option.Name
+			return option.Name
+		}
+	}
+	activePaneBorderName = "double"
+	return activePaneBorderName
+}
+
+func normalizeBorderName(name string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(name)), "_", "-")
+}
+
+func borderIndex(name string) int {
+	normalized := normalizeBorderName(name)
+	for i, option := range borderOptions {
+		if option.Name == normalized {
+			return i
+		}
+	}
+	return borderIndex(activePaneBorderName)
+}
+
+func activePaneBorder() lipgloss.Border {
+	for _, option := range borderOptions {
+		if option.Name == activePaneBorderName {
+			return option.Border
+		}
+	}
+	return lipgloss.DoubleBorder()
+}
+
 type logPaneRect struct {
 	PaneID int
 	X      int
@@ -403,9 +456,6 @@ func (m model) logSplitAreaSize() (int, int) {
 	if m.mode == modePipelines && m.repo != "" {
 		height--
 	}
-	if m.message != "" {
-		height--
-	}
 	if height < 1 {
 		height = 1
 	}
@@ -598,11 +648,13 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 	for i := start; i < end; i++ {
 		row := detail.DisplayJobs[i]
 		j := row.Current
-		line := fmt.Sprintf("%-24s %-16s %s", truncate(j.Name, 24), combinedStatusText(row), truncate(j.Stage, 16))
-		line = colorCombinedStatusInLine(line, row)
 		if i == pane.JobsCursor {
+			line := fmt.Sprintf("%-24s %-16s %s", truncate(j.Name, 24), combinedStatusText(row), truncate(j.Stage, 16))
+			line = colorCombinedStatusInSelectedLine(line, row)
 			b.WriteString(selectedStyle.Render(truncate(line, width)) + "\n")
 		} else {
+			line := fmt.Sprintf("%-24s %-16s %s", truncate(j.Name, 24), combinedStatusText(row), truncate(j.Stage, 16))
+			line = colorCombinedStatusInLine(line, row)
 			b.WriteString(truncate(line, width) + "\n")
 		}
 	}
@@ -661,11 +713,12 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 		if len(sha) > 8 {
 			sha = sha[:8]
 		}
-		line := fmt.Sprintf("%-9s %-12s %-18s %-9s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 18), sha, truncate(p.CommitTitle, max(1, width-53)))
-		line = colorStatusInLine(truncate(line, width), p.Status)
+		line := truncate(fmt.Sprintf("%-9s %-12s %-18s %-9s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 18), sha, truncate(p.CommitTitle, max(1, width-53))), width)
 		if i == cursor {
+			line = colorStatusInSelectedLine(line, p.Status)
 			b.WriteString(selectedStyle.Render(line) + "\n")
 		} else {
+			line = colorStatusInLine(line, p.Status)
 			b.WriteString(line + "\n")
 		}
 	}
@@ -679,12 +732,12 @@ func renderPaneBox(body string, active bool, loading bool, width, height int) st
 	borderColor := paneBorderColor
 	border := lipgloss.RoundedBorder()
 	if active {
-		border = lipgloss.ThickBorder()
+		border = activePaneBorder()
 	}
-	if loading {
-		borderColor = paneBorderLoadingColor
-	} else if active {
+	if active {
 		borderColor = paneBorderActiveColor
+	} else if loading {
+		borderColor = paneBorderLoadingColor
 	}
 	return lipgloss.NewStyle().
 		Width(width).

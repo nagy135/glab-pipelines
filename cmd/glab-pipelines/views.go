@@ -25,6 +25,17 @@ func (m model) View() string {
 	return ""
 }
 
+func (m model) headerLine(line string) string {
+	if m.width <= 0 {
+		return line
+	}
+	width := lipgloss.Width(line)
+	if width >= m.width {
+		return line
+	}
+	return line + strings.Repeat(" ", m.width-width)
+}
+
 func (m model) viewTheme() string {
 	width := m.width
 	if width <= 0 {
@@ -47,8 +58,8 @@ func (m model) viewTheme() string {
 	end := min(len(themeOptions), start+listRows)
 
 	var b strings.Builder
-	b.WriteString(boldStyle.Render("Theme") + " " + metaPill("current", m.themeName) + "\n")
-	b.WriteString(hintBar(keyHint("j/k", "move"), keyHint("enter", "apply"), keyHint("q", "back")) + "\n")
+	b.WriteString(m.headerLine(boldStyle.Render("Theme")+" "+metaPill("current", m.themeName)) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("enter", "apply"), keyHint("q", "back"))) + "\n")
 	if m.message != "" {
 		b.WriteString(yellowStyle.Render(m.message) + "\n")
 	}
@@ -88,19 +99,19 @@ func (m model) viewPipelines() string {
 	if label == "active" {
 		label = "active"
 	}
-	b.WriteString(breadcrumbs("Pipelines") + " " + metaPill("status", label) + " " + metaPill("limit", fmt.Sprintf("%d", m.limit)) + "\n")
+	b.WriteString(m.headerLine(breadcrumbs("Pipelines")+" "+metaPill("status", label)+" "+metaPill("limit", fmt.Sprintf("%d", m.limit))) + "\n")
 	if m.repo != "" {
-		b.WriteString(metaPill("repo", m.repo) + "\n")
+		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
-	b.WriteString(hintBar(keyHint("j/k", "move"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("t", "theme"), keyHint("r", "refresh"), keyHint("q", "quit")) + "\n")
-	if m.message != "" {
-		b.WriteString(yellowStyle.Render(m.message) + "\n")
-	}
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
 	}
 	var body strings.Builder
+	if m.message != "" {
+		body.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
 	if m.loadingList && len(m.list) == 0 {
 		body.WriteString(dimStyle.Render("loading pipelines...") + "\n")
 		b.WriteString(m.renderSinglePane(body.String()))
@@ -118,10 +129,11 @@ func (m model) viewPipelines() string {
 			sha = sha[:8]
 		}
 		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-19s %-11s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), shortTime(p.UpdatedOrCreated()), formatPipelineDuration(p.Duration), truncate(p.CommitTitle, 72))
-		line = colorStatusInLine(line, p.Status)
 		if i == m.listCursor {
+			line = colorStatusInSelectedLine(line, p.Status)
 			body.WriteString(selectedStyle.Render(line) + "\n")
 		} else {
+			line = colorStatusInLine(line, p.Status)
 			body.WriteString(line + "\n")
 		}
 	}
@@ -131,16 +143,16 @@ func (m model) viewPipelines() string {
 
 func (m model) viewDetail() string {
 	var b strings.Builder
-	b.WriteString(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID)) + " " + metaPill("refresh", m.refresh.String()) + "\n")
-	b.WriteString(hintBar(keyHint("j/k", "jobs"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("t", "theme"), keyHint("l", "logs"), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "back")) + "\n")
-	if m.message != "" {
-		b.WriteString(yellowStyle.Render(m.message) + "\n")
-	}
+	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID))+" "+metaPill("refresh", m.refresh.String())) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
 	}
 	var body strings.Builder
+	if m.message != "" {
+		body.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
 	if m.detail == nil {
 		body.WriteString(dimStyle.Render(fmt.Sprintf("loading pipeline #%d...", m.detailID)) + "\n")
 		b.WriteString(m.renderSinglePane(body.String()))
@@ -169,10 +181,11 @@ func (m model) viewDetail() string {
 			if j.Status == "failed" && j.AllowFailure {
 				allow = dimStyle.Render(" (allowed to fail)")
 			}
-			line := fmt.Sprintf("  %-32s %-26s %s%s", truncate(j.Name, 32), renderCombinedStatus(row), dimStyle.Render(formatDuration(displayDuration(row))), allow)
 			if i == m.jobsCursor {
+				line := fmt.Sprintf("  %-32s %-26s %s%s", truncate(j.Name, 32), renderSelectedCombinedStatus(row), dimStyle.Render(formatDuration(displayDuration(row))), allow)
 				body.WriteString(selectedStyle.Render(line) + "\n")
 			} else {
+				line := fmt.Sprintf("  %-32s %-26s %s%s", truncate(j.Name, 32), renderCombinedStatus(row), dimStyle.Render(formatDuration(displayDuration(row))), allow)
 				body.WriteString(line + "\n")
 			}
 		}
@@ -184,12 +197,12 @@ func (m model) viewDetail() string {
 
 func (m model) viewJobs() string {
 	var b strings.Builder
-	b.WriteString(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs") + "\n")
-	b.WriteString(hintBar(keyHint("j/k", "move"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("t", "theme"), keyHint("r", "refresh"), keyHint("q", "back")) + "\n")
-	if m.message != "" {
-		b.WriteString(yellowStyle.Render(m.message) + "\n")
-	}
+	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs")) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
 	var body strings.Builder
+	if m.message != "" {
+		body.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
 	if m.detail == nil || len(m.detail.DisplayJobs) == 0 {
 		body.WriteString(dimStyle.Render("no jobs loaded") + "\n")
 		b.WriteString(m.renderSinglePane(body.String()))
@@ -204,11 +217,13 @@ func (m model) viewJobs() string {
 			}
 			keys = strings.TrimSpace(keys + " l:prev-log")
 		}
-		line := fmt.Sprintf("%-26s %-24s %-18s %s", combinedStatusText(row), keys, truncate(j.Stage, 18), j.Name)
-		line = colorCombinedStatusInLine(line, row)
 		if i == m.jobsCursor {
+			line := fmt.Sprintf("%-26s %-24s %-18s %s", combinedStatusText(row), keys, truncate(j.Stage, 18), j.Name)
+			line = colorCombinedStatusInSelectedLine(line, row)
 			body.WriteString(selectedStyle.Render(line) + "\n")
 		} else {
+			line := fmt.Sprintf("%-26s %-24s %-18s %s", combinedStatusText(row), keys, truncate(j.Stage, 18), j.Name)
+			line = colorCombinedStatusInLine(line, row)
 			body.WriteString(line + "\n")
 		}
 	}
@@ -224,20 +239,20 @@ func (m model) viewLogs() string {
 		name = m.logJob.Name
 		status = m.logJob.Status
 	}
-	b.WriteString(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs", "Logs") + " " + metaPill("job", truncate(name, 28)) + " " + metaPill("status", status) + " " + metaPill("live", m.logRefresh.String()) + "\n")
+	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs", "Logs")+" "+metaPill("job", truncate(name, 28))+" "+metaPill("status", status)+" "+metaPill("live", m.logRefresh.String())) + "\n")
 	nHint := keyHint("n", "next job")
 	if m.logSearchActive {
 		nHint = keyHint("n/N", "match")
 	}
-	b.WriteString(hintBar(keyHint("j/k", "scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("/", "search"), keyHint("t", "theme"), nHint, keyHint("r", "reload"), keyHint("q", "back")) + "\n")
-	if m.message != "" {
-		b.WriteString(yellowStyle.Render(m.message) + "\n")
-	}
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), nHint, keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
 	}
 	var body strings.Builder
+	if m.message != "" {
+		body.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
 	if m.logsLoading {
 		body.WriteString(dimStyle.Render("loading...") + "\n")
 	}
@@ -256,7 +271,7 @@ func (m model) viewConfirm() string {
 	}
 	var b strings.Builder
 	a := *m.pending
-	b.WriteString(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Confirm") + " " + metaPill("action", a.Verb) + " " + metaPill("job", fmt.Sprintf("#%d", a.Job.ID)) + "\n")
+	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Confirm")+" "+metaPill("action", a.Verb)+" "+metaPill("job", fmt.Sprintf("#%d", a.Job.ID))) + "\n")
 	b.WriteString(cyanStyle.Render(a.Job.Name) + "\n\n")
 	prodPlay := strings.Contains(strings.ToLower(a.Job.Name), "prod") && a.Endpoint == "play"
 	if prodPlay {

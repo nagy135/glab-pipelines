@@ -142,6 +142,7 @@ type model struct {
 	themeName        string
 	themeCursor      int
 	themeBackMode    int
+	borderName       string
 }
 
 type pipelinesMsg struct {

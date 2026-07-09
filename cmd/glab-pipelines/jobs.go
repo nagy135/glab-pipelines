@@ -149,6 +149,14 @@ func renderCombinedStatus(row uiJob) string {
 	return statusStyle(row.Current.Status).Render(row.Current.Status)
 }
 
+func renderSelectedCombinedStatus(row uiJob) string {
+	if row.Current.Status == "manual" && row.Previous != nil {
+		prev := previousStatus(*row.Previous)
+		return selectedStatusStyle(prev).Render(prev) + dimStyle.Render(" + ") + selectedStatusStyle("manual").Render("manual")
+	}
+	return selectedStatusStyle(row.Current.Status).Render(row.Current.Status)
+}
+
 func colorCombinedStatusInLine(line string, row uiJob) string {
 	if row.Current.Status == "manual" && row.Previous != nil {
 		prev := previousStatus(*row.Previous)
@@ -157,6 +165,16 @@ func colorCombinedStatusInLine(line string, row uiJob) string {
 		return strings.Replace(line, needle, repl, 1)
 	}
 	return colorStatusInLine(line, row.Current.Status)
+}
+
+func colorCombinedStatusInSelectedLine(line string, row uiJob) string {
+	if row.Current.Status == "manual" && row.Previous != nil {
+		prev := previousStatus(*row.Previous)
+		needle := stripStatus(prev) + "+" + stripStatus("manual")
+		repl := selectedStatusStyle(prev).Render(stripStatus(prev)) + dimStyle.Render("+") + selectedStatusStyle("manual").Render(stripStatus("manual"))
+		return strings.Replace(line, needle, repl, 1)
+	}
+	return colorStatusInSelectedLine(line, row.Current.Status)
 }
 
 func orderedDisplayStages(jobs []uiJob) []string {

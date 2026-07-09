@@ -31,6 +31,7 @@ type stylePalette struct {
 	metaBG            lipgloss.Color
 	searchHitFG       lipgloss.Color
 	searchHitBG       lipgloss.Color
+	statusBadgeFG     lipgloss.Color
 	paneBorder        lipgloss.Color
 	paneBorderLoading lipgloss.Color
 	paneBorderActive  lipgloss.Color
@@ -145,6 +146,14 @@ var (
 	metaStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("235")).Padding(0, 1)
 	searchHitStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("16")).Background(lipgloss.Color("220")).Bold(true)
 
+	statusBadgeFGColor = lipgloss.Color("16")
+	statusGreenColor   = lipgloss.Color("42")
+	statusYellowColor  = lipgloss.Color("220")
+	statusRedColor     = lipgloss.Color("196")
+	statusBlueColor    = lipgloss.Color("69")
+	statusCyanColor    = lipgloss.Color("39")
+	statusMutedColor   = lipgloss.Color("245")
+
 	paneBorderColor        = lipgloss.Color("238")
 	paneBorderLoadingColor = lipgloss.Color("220")
 	paneBorderActiveColor  = lipgloss.Color("45")
@@ -237,6 +246,7 @@ func defaultStylePalette() stylePalette {
 		metaBG:            lipgloss.Color("235"),
 		searchHitFG:       lipgloss.Color("16"),
 		searchHitBG:       lipgloss.Color("220"),
+		statusBadgeFG:     lipgloss.Color("16"),
 		paneBorder:        lipgloss.Color("238"),
 		paneBorderLoading: lipgloss.Color("220"),
 		paneBorderActive:  lipgloss.Color("45"),
@@ -269,6 +279,7 @@ func terminalStylePalette(colors [16]string) stylePalette {
 		metaBG:            c(0),
 		searchHitFG:       c(0),
 		searchHitBG:       c(3),
+		statusBadgeFG:     c(0),
 		paneBorder:        c(8),
 		paneBorderLoading: c(3),
 		paneBorderActive:  c(6),
@@ -312,6 +323,7 @@ func schemeStylePalette(bg, fg, red, yellow, green, cyan, blue, magenta string) 
 		metaBG:            background,
 		searchHitFG:       background,
 		searchHitBG:       secondary,
+		statusBadgeFG:     background,
 		paneBorder:        foreground,
 		paneBorderLoading: warning,
 		paneBorderActive:  info,
@@ -334,25 +346,40 @@ func applyStylePalette(p stylePalette) {
 	keyStyle = lipgloss.NewStyle().Foreground(p.keyFG).Background(p.keyBG).Padding(0, 1).Bold(true)
 	metaStyle = lipgloss.NewStyle().Foreground(p.metaFG).Background(p.metaBG).Padding(0, 1)
 	searchHitStyle = lipgloss.NewStyle().Foreground(p.searchHitFG).Background(p.searchHitBG).Bold(true)
+	statusBadgeFGColor = p.statusBadgeFG
+	statusGreenColor = p.green
+	statusYellowColor = p.yellow
+	statusRedColor = p.red
+	statusBlueColor = p.blue
+	statusCyanColor = p.cyan
+	statusMutedColor = p.muted
 	paneBorderColor = p.paneBorder
 	paneBorderLoadingColor = p.paneBorderLoading
 	paneBorderActiveColor = p.paneBorderActive
 }
 
 func statusStyle(status string) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(statusColor(status))
+}
+
+func selectedStatusStyle(status string) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(statusBadgeFGColor).Background(statusColor(status)).Bold(true)
+}
+
+func statusColor(status string) lipgloss.Color {
 	switch status {
 	case "success", "ran":
-		return greenStyle
+		return statusGreenColor
 	case "failed":
-		return redStyle
+		return statusRedColor
 	case "running", "pending", "waiting_for_resource":
-		return yellowStyle
+		return statusYellowColor
 	case "manual", "scheduled":
-		return blueStyle
+		return statusBlueColor
 	case "preparing":
-		return cyanStyle
+		return statusCyanColor
 	default:
-		return mutedStyle
+		return statusMutedColor
 	}
 }
 
@@ -361,6 +388,11 @@ func stripStatus(status string) string { return "[" + status + "]" }
 func colorStatusInLine(line, status string) string {
 	needle := stripStatus(status)
 	return strings.Replace(line, needle, statusStyle(status).Render(needle), 1)
+}
+
+func colorStatusInSelectedLine(line, status string) string {
+	needle := stripStatus(status)
+	return strings.Replace(line, needle, selectedStatusStyle(status).Render(needle), 1)
 }
 
 func breadcrumbs(labels ...string) string {

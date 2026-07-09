@@ -12,8 +12,14 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.Type == tea.KeyCtrlC {
 		return m, tea.Quit
 	}
+	if key.String() == "Q" {
+		return m, tea.Quit
+	}
 	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && !(m.mode == modeLogs && m.logSearchMode) {
 		return m.openThemePicker(), tea.ClearScreen
+	}
+	if key.String() == "b" && m.mode != modeConfirm && !(m.mode == modeLogs && m.logSearchMode) {
+		return m.cycleActiveBorder(), tea.ClearScreen
 	}
 	switch m.mode {
 	case modePipelines:
@@ -30,6 +36,17 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleThemeKey(key)
 	}
 	return m, nil
+}
+
+func (m model) cycleActiveBorder() model {
+	idx := borderIndex(m.borderName)
+	idx = (idx + 1) % len(borderOptions)
+	m.borderName = applyActiveBorder(borderOptions[idx].Name)
+	m.message = "border: " + m.borderName
+	if err := saveBorderName(m.borderName); err != nil {
+		m.message += " (not saved)"
+	}
+	return m
 }
 
 func (m model) openThemePicker() model {
@@ -92,12 +109,17 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.focusLogPane("k"), nil
 	case "ctrl+l":
 		return m.focusLogPane("l"), nil
-	case "q", "esc":
+	case "q":
+		if len(m.logPanes) > 1 {
+			return m.closeActiveLogPane(), tea.ClearScreen
+		}
+		return m, tea.Quit
+	case "esc":
 		return m, tea.Quit
 	case "r", "R":
 		m.listRequest++
 		m.loadingList = true
-		m.message = "refreshing pipelines..."
+		m.message = ""
 		return m, fetchPipelinesCmd(m.repo, m.status, m.limit, m.listRequest)
 	case "up", "k":
 		m.listCursor = moveUp(m.listCursor, len(m.list))
@@ -141,16 +163,12 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.focusLogPane("k"), nil
 	case "ctrl+l":
 		return m.focusLogPane("l"), nil
-	case "q", "esc":
+	case "q":
 		if len(m.logPanes) > 1 {
-			m = m.setActivePaneMode(modePipelines)
-			m.detail = nil
-			m.detailID = 0
-			m.detailLoading = false
-			m.jobsCursor = 0
-			m.message = ""
-			return m.saveActiveLogPane(), tea.ClearScreen
+			return m.closeActiveLogPane(), tea.ClearScreen
 		}
+		return m, tea.Quit
+	case "esc":
 		m.mode = modePipelines
 		m.message = ""
 		return m, tea.ClearScreen
@@ -278,12 +296,12 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.focusLogPane("k"), nil
 	case "ctrl+l":
 		return m.focusLogPane("l"), nil
-	case "q", "esc":
+	case "q":
 		if len(m.logPanes) > 1 {
-			m = m.setActivePaneMode(modeDetail)
-			m.message = ""
-			return m, tea.ClearScreen
+			return m.closeActiveLogPane(), tea.ClearScreen
 		}
+		return m, tea.Quit
+	case "esc":
 		if m.logBackMode == 0 {
 			m.logBackMode = modeJobs
 		}

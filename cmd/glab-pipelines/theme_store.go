@@ -7,7 +7,7 @@ import (
 )
 
 func loadSavedThemeName() (string, bool) {
-	path, err := themeStorePath()
+	path, err := dataStorePath("theme")
 	if err != nil {
 		return "", false
 	}
@@ -20,7 +20,7 @@ func loadSavedThemeName() (string, bool) {
 }
 
 func saveThemeName(name string) error {
-	path, err := themeStorePath()
+	path, err := dataStorePath("theme")
 	if err != nil {
 		return err
 	}
@@ -30,10 +30,34 @@ func saveThemeName(name string) error {
 	return os.WriteFile(path, []byte(name+"\n"), 0o644)
 }
 
-func themeStorePath() (string, error) {
+func loadSavedBorderName() (string, bool) {
+	path, err := dataStorePath("border")
+	if err != nil {
+		return "", false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	name := strings.TrimSpace(string(data))
+	return name, name != ""
+}
+
+func saveBorderName(name string) error {
+	path, err := dataStorePath("border")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(name+"\n"), 0o644)
+}
+
+func dataStorePath(name string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".local", "share", "glab-pipelines", "theme"), nil
+	return filepath.Join(home, ".local", "share", "glab-pipelines", name), nil
 }

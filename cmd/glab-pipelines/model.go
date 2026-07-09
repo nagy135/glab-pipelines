@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -40,7 +39,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.logPanes[i].ListCursor = max(0, len(m.list)-1)
 			}
 		}
-		m.message = "refreshed " + time.Now().Format("15:04:05")
+		m.message = ""
 		return m, nil
 	case detailMsg:
 		updatedPane := false
