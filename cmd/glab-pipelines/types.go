@@ -14,6 +14,11 @@ const (
 	modeLogs
 )
 
+const (
+	logSplitHorizontal = iota
+	logSplitVertical
+)
+
 var activeStatuses = []string{"running", "pending", "created", "waiting_for_resource", "preparing", "manual", "scheduled"}
 
 type pipeline struct {
@@ -24,6 +29,7 @@ type pipeline struct {
 	Source      string     `json:"source"`
 	UpdatedAt   string     `json:"updated_at"`
 	CreatedAt   string     `json:"created_at"`
+	Duration    *float64   `json:"duration"`
 	WebURL      string     `json:"web_url"`
 	Commit      commitInfo `json:"commit"`
 	CommitTitle string     `json:"commit_title,omitempty"`
@@ -71,6 +77,32 @@ type logSearchMatch struct {
 	End   int
 }
 
+type logPane struct {
+	ID            int
+	Mode          int
+	ListCursor    int
+	DetailID      int
+	Detail        *detail
+	JobsCursor    int
+	Job           *job
+	BackMode      int
+	Logs          string
+	Loading       bool
+	Viewport      viewport.Model
+	SearchMode    bool
+	SearchActive  bool
+	SearchQuery   string
+	SearchMatches []logSearchMatch
+	SearchIndex   int
+}
+
+type logSplitNode struct {
+	PaneID    int
+	Direction int
+	First     *logSplitNode
+	Second    *logSplitNode
+}
+
 type model struct {
 	repo             string
 	status           string
@@ -87,6 +119,7 @@ type model struct {
 	listCursor       int
 	detailID         int
 	detail           *detail
+	detailLoading    bool
 	jobsCursor       int
 	pending          *pendingAction
 	confirmText      string
@@ -101,6 +134,10 @@ type model struct {
 	logSearchQuery   string
 	logSearchMatches []logSearchMatch
 	logSearchIndex   int
+	logPanes         []logPane
+	activeLogPane    int
+	nextLogPaneID    int
+	logSplitRoot     *logSplitNode
 }
 
 type pipelinesMsg struct {

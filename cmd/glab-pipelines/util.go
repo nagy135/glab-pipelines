@@ -64,6 +64,23 @@ func formatDuration(d *float64) string {
 	return fmt.Sprintf("%ds", sec)
 }
 
+func formatPipelineDuration(d *float64) string {
+	if d == nil {
+		return "--"
+	}
+	s := int(*d)
+	h := s / 3600
+	m := (s % 3600) / 60
+	sec := s % 60
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm %ds", h, m, sec)
+	}
+	if m > 0 {
+		return fmt.Sprintf("%dm %ds", m, sec)
+	}
+	return fmt.Sprintf("%ds", sec)
+}
+
 func truncate(value string, limit int) string {
 	r := []rune(value)
 	if len(r) <= limit {

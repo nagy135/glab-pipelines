@@ -72,10 +72,10 @@ Environment:
   GLAB_TUI_LOG_REFRESH=3         log refresh interval in seconds
 
 Keys:
-  Pipeline list: j/k or up/down move, enter details, r refresh, q quit
-  Detail: j/k or up/down move jobs, p jobs list, s start/retry, c cancel, l logs, r refresh, q back, o open
+  Pipeline list: j/k or up/down move, enter details, s/v split, ctrl+hjkl focus, x close split, r refresh, q quit
+  Detail: j/k or up/down move jobs, s/v split, ctrl+hjkl focus, x close split, l logs in focused split, S start/retry, c cancel, r refresh, q back, o open
   Jobs: j/k or up/down move, s start/retry, c cancel, l logs, r refresh, q back
-  Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, / search, n next job or next match, N previous match, r reload, q back`)
+  Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, s/v split, ctrl+hjkl focus, x close split, / search, n next job or next match, N previous match, r reload, q back`)
 }
 
 func envInt(name string, fallback int) int {

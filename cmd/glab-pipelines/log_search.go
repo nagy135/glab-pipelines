@@ -33,21 +33,21 @@ func (m model) clearLogSearch() model {
 func (m model) handleLogSearchKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.Type {
 	case tea.KeyEsc:
-		return m.clearLogSearch(), nil
+		return m.clearLogSearch().saveActiveLogPane(), nil
 	case tea.KeyEnter:
 		m.logSearchMode = false
 		m.logSearchActive = m.logSearchQuery != "" && len(m.logSearchMatches) > 0
 		m.logsViewport.SetContent(m.renderLogContent())
-		return m.configureLogViewport(), nil
+		return m.configureLogViewport().saveActiveLogPane(), nil
 	case tea.KeyBackspace, tea.KeyCtrlH:
 		m.logSearchQuery = trimLastRune(m.logSearchQuery)
-		return m.jumpToCurrentLogSearch(), nil
+		return m.jumpToCurrentLogSearch().saveActiveLogPane(), nil
 	case tea.KeySpace:
 		m.logSearchQuery += " "
-		return m.jumpToCurrentLogSearch(), nil
+		return m.jumpToCurrentLogSearch().saveActiveLogPane(), nil
 	case tea.KeyRunes:
 		m.logSearchQuery += key.String()
-		return m.jumpToCurrentLogSearch(), nil
+		return m.jumpToCurrentLogSearch().saveActiveLogPane(), nil
 	}
 	return m, nil
 }
@@ -160,17 +160,21 @@ func (m model) logSearchStatus() string {
 }
 
 func (m model) renderLogContent() string {
-	if m.logSearchIndex < 0 || m.logSearchIndex >= len(m.logSearchMatches) {
-		return m.logs
+	return renderLogContentFor(m.logs, m.logSearchMatches, m.logSearchIndex)
+}
+
+func renderLogContentFor(logs string, matches []logSearchMatch, index int) string {
+	if index < 0 || index >= len(matches) {
+		return logs
 	}
-	match := m.logSearchMatches[m.logSearchIndex]
-	lines := strings.Split(m.logs, "\n")
+	match := matches[index]
+	lines := strings.Split(logs, "\n")
 	if match.Line < 0 || match.Line >= len(lines) {
-		return m.logs
+		return logs
 	}
 	line := lines[match.Line]
 	if match.Start < 0 || match.End > len(line) || match.Start >= match.End {
-		return m.logs
+		return logs
 	}
 	lines[match.Line] = line[:match.Start] + searchHitStyle.Render(line[match.Start:match.End]) + line[match.End:]
 	return strings.Join(lines, "\n")

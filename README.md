@@ -81,6 +81,10 @@ Pipeline list:
 
 - `j`/`k` or arrow keys: move selection
 - `enter`: open pipeline details
+- `s`: split horizontally
+- `v`: split vertically
+- `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
+- `x`: close focused split
 - `r`: refresh
 - `q`: quit
 
@@ -88,9 +92,13 @@ Pipeline detail:
 
 - `j`/`k` or arrow keys: move jobs
 - `p`: open jobs list
-- `s`: start or retry selected job when available
+- `s`: split horizontally
+- `v`: split vertically
+- `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
+- `x`: close focused split
+- `S`: start or retry selected job when available
 - `c`: cancel selected job when available
-- `l`: open logs
+- `l`: open logs for the selected job in the focused split
 - `r`: refresh
 - `o`: open pipeline in browser
 - `q`: go back
@@ -110,11 +118,15 @@ Logs:
 - `pgup`/`pgdn`: page
 - `g`: top
 - `G`: bottom
+- `s`: split horizontally
+- `v`: split vertically
+- `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
+- `x`: close focused split
 - `/`: search logs incrementally
 - `n`: next job, or next search match after confirming search
 - `N`: previous search match after confirming search
 - `r`: reload
-- `q`: go back
+- `q`: go back, or return the focused split to pipeline detail when split
 
 ## Development
 

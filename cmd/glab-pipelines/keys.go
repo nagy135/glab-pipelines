@@ -29,6 +29,20 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
+	case "s":
+		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
+	case "v":
+		return m.splitActiveLogPane(logSplitVertical), tea.ClearScreen
+	case "x":
+		return m.closeActiveLogPane(), tea.ClearScreen
+	case "ctrl+h":
+		return m.focusLogPane("h"), nil
+	case "ctrl+j":
+		return m.focusLogPane("j"), nil
+	case "ctrl+k":
+		return m.focusLogPane("k"), nil
+	case "ctrl+l":
+		return m.focusLogPane("l"), nil
 	case "q", "esc":
 		return m, tea.Quit
 	case "r", "R":
@@ -38,17 +52,25 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, fetchPipelinesCmd(m.repo, m.status, m.limit, m.listRequest)
 	case "up", "k":
 		m.listCursor = moveUp(m.listCursor, len(m.list))
+		m = m.saveActiveLogPane()
 	case "down", "j":
 		m.listCursor = moveDown(m.listCursor, len(m.list))
+		m = m.saveActiveLogPane()
 	case "enter":
 		if len(m.list) == 0 {
 			return m, nil
 		}
 		m.detailID = m.list[m.listCursor].ID
 		m.detail = nil
+		m.detailLoading = true
 		m.jobsCursor = 0
 		m.message = ""
 		m.mode = modeDetail
+		if m.logSplitRoot == nil || m.activeLogPane == 0 {
+			m = m.initLogPanes()
+		} else {
+			m = m.saveActiveLogPane()
+		}
 		return m, tea.Batch(tea.ClearScreen, fetchDetailCmd(m.repo, m.detailID), tickDetailCmd(m.detailID, m.refresh))
 	}
 	return m, nil
@@ -56,27 +78,58 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
+	case "s":
+		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
+	case "v":
+		return m.splitActiveLogPane(logSplitVertical), tea.ClearScreen
+	case "x":
+		return m.closeActiveLogPane(), tea.ClearScreen
+	case "ctrl+h":
+		return m.focusLogPane("h"), nil
+	case "ctrl+j":
+		return m.focusLogPane("j"), nil
+	case "ctrl+k":
+		return m.focusLogPane("k"), nil
+	case "ctrl+l":
+		return m.focusLogPane("l"), nil
 	case "q", "esc":
+		if len(m.logPanes) > 1 {
+			m = m.setActivePaneMode(modePipelines)
+			m.detail = nil
+			m.detailID = 0
+			m.detailLoading = false
+			m.jobsCursor = 0
+			m.message = ""
+			return m.saveActiveLogPane(), tea.ClearScreen
+		}
 		m.mode = modePipelines
 		m.message = ""
 		return m, tea.ClearScreen
 	case "r":
+		m.detailLoading = true
+		m = m.saveActiveLogPane()
 		return m, fetchDetailCmd(m.repo, m.detailID)
 	case "up", "k":
 		if m.detail != nil {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, -1)
+			m = m.saveActiveLogPane()
 		}
 	case "down", "j":
 		if m.detail != nil {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, 1)
+			m = m.saveActiveLogPane()
 		}
-	case "s", "c":
+	case "S", "c":
 		if m.detail == nil || len(m.detail.DisplayJobs) == 0 {
 			m.message = "no jobs loaded"
 			return m, nil
 		}
 		job := m.detail.DisplayJobs[m.jobsCursor].Current
-		action, ok := resolveAction(key.String(), job)
+		actionKey := key.String()
+		if actionKey == "S" {
+			actionKey = "s"
+		}
+		action, ok := resolveAction(actionKey, job)
 		if !ok {
 			m.message = fmt.Sprintf("action not available for %s (%s)", job.Name, job.Status)
 			return m, nil
@@ -144,17 +197,16 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) openLogs(job job, backMode int) (tea.Model, tea.Cmd) {
-	m.logJob = &job
-	m.logBackMode = backMode
-	m.logs = ""
-	m.logsLoading = true
-	m = m.clearLogSearch()
-	m.message = ""
-	m.mode = modeLogs
+	if m.logSplitRoot == nil || m.activeLogPane == 0 {
+		m = m.initLogPanes()
+	}
 	m.logsViewport = viewport.New(max(1, m.width), max(1, m.height-4))
-	m = m.configureLogViewport()
-	m.logsViewport.SetContent("loading logs...")
-	return m, tea.Batch(tea.ClearScreen, fetchLogsCmd(m.repo, job), tickLogsCmd(job.ID, m.logRefresh))
+	m = m.setActivePaneLogs(job, backMode)
+	cmds := []tea.Cmd{tea.ClearScreen, fetchLogsCmd(m.repo, job)}
+	if shouldAutoRefreshLogs(&job) {
+		cmds = append(cmds, tickLogsCmd(job.ID, m.logRefresh))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -162,7 +214,26 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLogSearchKey(key)
 	}
 	switch key.String() {
+	case "s":
+		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
+	case "v":
+		return m.splitActiveLogPane(logSplitVertical), tea.ClearScreen
+	case "x":
+		return m.closeActiveLogPane(), tea.ClearScreen
+	case "ctrl+h":
+		return m.focusLogPane("h"), nil
+	case "ctrl+j":
+		return m.focusLogPane("j"), nil
+	case "ctrl+k":
+		return m.focusLogPane("k"), nil
+	case "ctrl+l":
+		return m.focusLogPane("l"), nil
 	case "q", "esc":
+		if len(m.logPanes) > 1 {
+			m = m.setActivePaneMode(modeDetail)
+			m.message = ""
+			return m, tea.ClearScreen
+		}
 		if m.logBackMode == 0 {
 			m.logBackMode = modeJobs
 		}
@@ -179,18 +250,19 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.logs == "" {
 			m.logsViewport.SetContent("loading logs...")
 		}
+		m = m.saveActiveLogPane()
 		return m, fetchLogsCmd(m.repo, *m.logJob)
 	case "/":
-		return m.beginLogSearch(), nil
+		return m.beginLogSearch().saveActiveLogPane(), nil
 	case "g":
 		m.logsViewport.GotoTop()
-		return m, nil
+		return m.saveActiveLogPane(), nil
 	case "G":
 		m.logsViewport.GotoBottom()
-		return m, nil
+		return m.saveActiveLogPane(), nil
 	case "n":
 		if m.logSearchActive {
-			return m.jumpLogSearchMatch(1), nil
+			return m.jumpLogSearchMatch(1).saveActiveLogPane(), nil
 		}
 		if m.detail != nil && len(m.detail.DisplayJobs) > 0 {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, 1)
@@ -200,12 +272,12 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 	case "N":
 		if m.logSearchActive {
-			return m.jumpLogSearchMatch(-1), nil
+			return m.jumpLogSearchMatch(-1).saveActiveLogPane(), nil
 		}
 	}
 	var cmd tea.Cmd
 	m.logsViewport, cmd = m.logsViewport.Update(key)
-	return m, cmd
+	return m.saveActiveLogPane(), cmd
 }
 
 func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {

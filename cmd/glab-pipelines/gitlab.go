@@ -46,14 +46,25 @@ func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 	if len(all) > limit {
 		all = all[:limit]
 	}
-	enrichPipelineCommitTitles(repo, all)
+	enrichPipelineMetadata(repo, all)
 	savePipelineCache(repo, status, limit, all)
 	return all, nil
 }
 
-func enrichPipelineCommitTitles(repo string, pipelines []pipeline) {
+func enrichPipelineMetadata(repo string, pipelines []pipeline) {
 	titles := map[string]string{}
 	for i := range pipelines {
+		if pipelines[i].Duration == nil {
+			if detail, err := fetchPipeline(repo, pipelines[i].ID); err == nil {
+				pipelines[i].Duration = detail.Duration
+				if pipelines[i].Commit.Title == "" {
+					pipelines[i].Commit.Title = detail.Commit.Title
+				}
+				if pipelines[i].CommitTitle == "" {
+					pipelines[i].CommitTitle = detail.CommitTitle
+				}
+			}
+		}
 		if pipelines[i].Commit.Title != "" {
 			pipelines[i].CommitTitle = pipelines[i].Commit.Title
 			continue
@@ -84,9 +95,21 @@ func enrichPipelineCommitTitles(repo string, pipelines []pipeline) {
 	}
 }
 
+func fetchPipeline(repo string, pid int) (pipeline, error) {
+	out, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/pipelines/%d", pid))
+	if err != nil {
+		return pipeline{}, err
+	}
+	var p pipeline
+	if err := json.Unmarshal(out, &p); err != nil {
+		return pipeline{}, err
+	}
+	return p, nil
+}
+
 func fetchDetail(repo string, pid int) (detail, error) {
 	var d detail
-	pipelineJSON, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/pipelines/%d", pid))
+	p, err := fetchPipeline(repo, pid)
 	if err != nil {
 		return d, err
 	}
@@ -94,9 +117,7 @@ func fetchDetail(repo string, pid int) (detail, error) {
 	if err != nil {
 		return d, err
 	}
-	if err := json.Unmarshal(pipelineJSON, &d.Pipeline); err != nil {
-		return d, err
-	}
+	d.Pipeline = p
 	if err := json.Unmarshal(jobsJSON, &d.Jobs); err != nil {
 		return d, err
 	}

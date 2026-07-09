@@ -83,6 +83,10 @@ func jobHasRun(j job) bool {
 	return j.StartedAt != "" || j.FinishedAt != "" || j.Duration != nil
 }
 
+func shouldAutoRefreshLogs(j *job) bool {
+	return j != nil && j.Status == "running"
+}
+
 func augmentPreviousRuns(rows []uiJob, history []job, p pipeline) {
 	for i := range rows {
 		if rows[i].Current.Status != "manual" {

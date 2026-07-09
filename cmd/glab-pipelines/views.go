@@ -31,9 +31,13 @@ func (m model) viewPipelines() string {
 	if m.repo != "" {
 		b.WriteString(metaPill("repo", m.repo) + "\n")
 	}
-	b.WriteString(hintBar(keyHint("j/k", "move"), keyHint("enter", "details"), keyHint("r", "refresh"), keyHint("q", "quit")) + "\n")
+	b.WriteString(hintBar(keyHint("j/k", "move"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("r", "refresh"), keyHint("q", "quit")) + "\n")
 	if m.message != "" {
 		b.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
+	if len(m.logPanes) > 1 {
+		b.WriteString(m.viewLogSplits())
+		return b.String()
 	}
 	b.WriteString("\n")
 	if m.loadingList && len(m.list) == 0 {
@@ -44,13 +48,13 @@ func (m model) viewPipelines() string {
 		b.WriteString(yellowStyle.Render("no pipelines found") + "\n")
 		return b.String()
 	}
-	b.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-16s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "UPDATED", "TITLE")) + "\n")
+	b.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-19s %-11s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "UPDATED", "DURATION", "TITLE")) + "\n")
 	for i, p := range m.list {
 		sha := p.SHA
 		if len(sha) > 8 {
 			sha = sha[:8]
 		}
-		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-16s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), shortTime(p.UpdatedOrCreated()), truncate(p.CommitTitle, 72))
+		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-19s %-11s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), shortTime(p.UpdatedOrCreated()), formatPipelineDuration(p.Duration), truncate(p.CommitTitle, 72))
 		line = colorStatusInLine(line, p.Status)
 		if i == m.listCursor {
 			b.WriteString(selectedStyle.Render(line) + "\n")
@@ -64,9 +68,13 @@ func (m model) viewPipelines() string {
 func (m model) viewDetail() string {
 	var b strings.Builder
 	b.WriteString(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID)) + " " + metaPill("refresh", m.refresh.String()) + "\n")
-	b.WriteString(hintBar(keyHint("j/k", "jobs"), keyHint("p", "jobs list"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("r", "refresh"), keyHint("q", "back"), keyHint("o", "open")) + "\n")
+	b.WriteString(hintBar(keyHint("j/k", "jobs"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("l", "logs"), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "back")) + "\n")
 	if m.message != "" {
 		b.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
+	if len(m.logPanes) > 1 {
+		b.WriteString(m.viewLogSplits())
+		return b.String()
 	}
 	b.WriteString("\n")
 	if m.detail == nil {
@@ -153,9 +161,13 @@ func (m model) viewLogs() string {
 	if m.logSearchActive {
 		nHint = keyHint("n/N", "match")
 	}
-	b.WriteString(hintBar(keyHint("j/k", "scroll"), keyHint("pgup/pgdn", "page"), keyHint("g/G", "top/bottom"), keyHint("/", "search"), nHint, keyHint("r", "reload"), keyHint("q", "back")) + "\n")
+	b.WriteString(hintBar(keyHint("j/k", "scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("/", "search"), nHint, keyHint("r", "reload"), keyHint("q", "back")) + "\n")
 	if m.message != "" {
 		b.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
+	if len(m.logPanes) > 1 {
+		b.WriteString(m.viewLogSplits())
+		return b.String()
 	}
 	if m.logsLoading {
 		b.WriteString(dimStyle.Render("loading...") + "\n")
