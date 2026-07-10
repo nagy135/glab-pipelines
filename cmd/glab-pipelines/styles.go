@@ -399,7 +399,7 @@ func keyHint(key, text string) string {
 }
 
 func hintBar(items ...string) string {
-	return lipgloss.JoinHorizontal(lipgloss.Top, items...)
+	return strings.Join(items, " ")
 }
 
 func metaPill(label, value string) string {

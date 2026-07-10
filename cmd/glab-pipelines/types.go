@@ -122,6 +122,7 @@ type model struct {
 	detailPolls      map[int]int
 	logRequests      map[int64]int
 	logPolls         map[int64]int
+	logFailures      map[int64]int
 	list             []pipeline
 	listCursor       int
 	detailID         int
@@ -192,4 +193,5 @@ type tickMsg struct {
 type logTickMsg struct {
 	jobID  int64
 	pollID int
+	force  bool
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 )
 
 func (m model) View() string {
@@ -269,21 +271,106 @@ func (m model) viewConfirm() string {
 	if m.pending == nil {
 		return ""
 	}
+	backgroundModel := m
+	backgroundModel.mode = m.confirmBackMode
+	var background string
+	if m.confirmBackMode == modeJobs {
+		background = backgroundModel.viewJobs()
+	} else {
+		background = backgroundModel.viewDetail()
+	}
+
 	var b strings.Builder
 	a := *m.pending
-	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Confirm")+" "+metaPill("action", a.Verb)+" "+metaPill("job", fmt.Sprintf("#%d", a.Job.ID))) + "\n")
-	b.WriteString(cyanStyle.Render(a.Job.Name) + "\n\n")
+	b.WriteString(boldStyle.Render(a.Verb+" job?") + "\n")
+	b.WriteString(dimStyle.Render(fmt.Sprintf("#%d", a.Job.ID)) + "  " + cyanStyle.Render(a.Job.Name) + "\n\n")
 	prodPlay := strings.Contains(strings.ToLower(a.Job.Name), "prod") && a.Endpoint == "play"
 	if prodPlay {
 		b.WriteString(redStyle.Bold(true).Render("Production deploy protection") + "\n")
-		b.WriteString(fmt.Sprintf("Type exact job name to confirm: %s\n", boldStyle.Render(a.Job.Name)))
-		b.WriteString(cyanStyle.Render(m.confirmText) + "\n")
-		b.WriteString(dimStyle.Render("enter confirm  esc cancel") + "\n")
+		b.WriteString("Type the exact job name to confirm:\n")
+		b.WriteString(boldStyle.Render(a.Job.Name) + "\n")
+		b.WriteString(cyanStyle.Render(m.confirmText+"_") + "\n\n")
+		b.WriteString(hintBar(keyHint("enter", "confirm"), keyHint("esc", "cancel")))
 		if m.message != "" {
-			b.WriteString(yellowStyle.Render(m.message) + "\n")
+			b.WriteString("\n" + yellowStyle.Render(m.message))
 		}
-		return b.String()
+	} else {
+		b.WriteString("Send this action to GitLab?\n\n")
+		b.WriteString(hintBar(keyHint("y", "confirm"), keyHint("n", "cancel")))
 	}
-	b.WriteString(fmt.Sprintf("Confirm %s? %s\n", a.Verb, dimStyle.Render("y/n")))
+	panelWidth := 62
+	if m.width > 0 {
+		panelWidth = min(panelWidth, m.width)
+	}
+	padding := 1
+	if panelWidth < 8 {
+		padding = 0
+	}
+	contentWidth := max(1, panelWidth-2-(2*padding))
+	panel := lipgloss.NewStyle().
+		Width(contentWidth).
+		Padding(padding).
+		Border(activePaneBorder()).
+		BorderForeground(paneBorderActiveColor).
+		Render(b.String())
+	return overlayCentered(background, panel, m.width, m.height)
+}
+
+func overlayCentered(background, foreground string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return foreground
+	}
+	foregroundWidth := min(width, lipgloss.Width(foreground))
+	foregroundLines := strings.Split(foreground, "\n")
+	foregroundHeight := min(height, len(foregroundLines))
+	x := max(0, (width-foregroundWidth)/2)
+	y := max(0, (height-foregroundHeight)/2)
+
+	backgroundLines := strings.Split(ansi.Strip(background), "\n")
+	lines := make([]string, height)
+	for row := range lines {
+		base := ""
+		if row < len(backgroundLines) {
+			base = backgroundLines[row]
+		}
+		base = cellSlice(base, 0, width)
+		if row < y || row >= y+foregroundHeight {
+			lines[row] = base
+			continue
+		}
+		modalLine := foregroundLines[row-y]
+		modalLine = truncate(modalLine, foregroundWidth)
+		modalLine += strings.Repeat(" ", max(0, foregroundWidth-ansi.StringWidth(modalLine)))
+		lines[row] = cellSlice(base, 0, x) + modalLine + cellSlice(base, x+foregroundWidth, width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func cellSlice(value string, start, end int) string {
+	if end <= start {
+		return ""
+	}
+	var b strings.Builder
+	position := 0
+	graphemes := uniseg.NewGraphemes(value)
+	for graphemes.Next() {
+		width := graphemes.Width()
+		next := position + width
+		if next <= start {
+			position = next
+			continue
+		}
+		if position >= end {
+			break
+		}
+		if position < start || next > end {
+			visible := min(next, end) - max(position, start)
+			b.WriteString(strings.Repeat(" ", max(0, visible)))
+		} else {
+			b.WriteString(graphemes.Str())
+		}
+		position = next
+	}
+	b.WriteString(strings.Repeat(" ", max(0, end-start-uniseg.StringWidth(b.String()))))
 	return b.String()
 }

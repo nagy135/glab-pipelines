@@ -37,8 +37,10 @@ func tickDetailCmd(pid, pollID int, refresh time.Duration) tea.Cmd {
 	return tea.Tick(refresh, func(time.Time) tea.Msg { return tickMsg{pid: pid, pollID: pollID} })
 }
 
-func tickLogsCmd(jobID int64, pollID int, refresh time.Duration) tea.Cmd {
-	return tea.Tick(refresh, func(time.Time) tea.Msg { return logTickMsg{jobID: jobID, pollID: pollID} })
+func tickLogsCmd(jobID int64, pollID int, refresh time.Duration, force bool) tea.Cmd {
+	return tea.Tick(refresh, func(time.Time) tea.Msg {
+		return logTickMsg{jobID: jobID, pollID: pollID, force: force}
+	})
 }
 
 func runActionCmd(repo string, action pendingAction, requestID int) tea.Cmd {
@@ -73,6 +75,9 @@ func (m model) requestLogs(j job, restartPolling bool) (model, tea.Cmd) {
 	}
 	if restartPolling || m.logPolls[j.ID] == 0 {
 		m.logPolls[j.ID]++
+	}
+	if restartPolling && m.logFailures != nil {
+		delete(m.logFailures, j.ID)
 	}
 	m.nextRequestID++
 	m.logRequests[j.ID] = m.nextRequestID

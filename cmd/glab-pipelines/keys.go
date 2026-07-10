@@ -61,7 +61,16 @@ func (m model) closeThemePicker() model {
 	if m.themeBackMode == 0 {
 		m.themeBackMode = modePipelines
 	}
-	m.mode = m.themeBackMode
+	backMode := m.themeBackMode
+	if backMode == modeLogs {
+		if idx := m.logPaneIndex(m.activeLogPane); idx >= 0 {
+			m = m.restoreLogPane(m.logPanes[idx])
+		} else {
+			m.mode = backMode
+		}
+	} else {
+		m.mode = backMode
+	}
 	m.themeBackMode = 0
 	m.message = ""
 	return m
@@ -319,12 +328,7 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	case "esc":
-		if m.logBackMode == 0 {
-			m.logBackMode = modeJobs
-		}
-		m.mode = m.logBackMode
-		m.message = ""
-		return m, tea.ClearScreen
+		return m.leaveLogs(m.logBackMode), tea.ClearScreen
 	case "r":
 		if m.logJob == nil {
 			return m, nil
@@ -354,9 +358,7 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.detail != nil && len(m.detail.DisplayJobs) > 0 {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, 1)
 		}
-		m.mode = modeDetail
-		m.message = ""
-		return m, tea.ClearScreen
+		return m.leaveLogs(modeDetail), tea.ClearScreen
 	case "N":
 		if m.logSearchActive {
 			return m.jumpLogSearchMatch(-1).saveActiveLogPane(), nil
@@ -365,6 +367,24 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.logsViewport, cmd = m.logsViewport.Update(key)
 	return m.saveActiveLogPane(), cmd
+}
+
+func (m model) leaveLogs(backMode int) model {
+	if backMode == 0 {
+		backMode = modeJobs
+	}
+	m.mode = backMode
+	if idx := m.logPaneIndex(m.activeLogPane); idx >= 0 {
+		pane := m.currentLogPaneState(m.activeLogPane)
+		pane.Mode = backMode
+		if pane.Mode == modeJobs {
+			pane.Mode = modeDetail
+		}
+		pane.Loading = m.paneModeLoading(pane.Mode)
+		m.logPanes[idx] = pane
+	}
+	m.message = ""
+	return m
 }
 
 func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -380,7 +400,10 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch key.String() {
 		case "y":
 			action := *m.pending
-			m.mode = modeDetail
+			if m.confirmBackMode == 0 {
+				m.confirmBackMode = modeDetail
+			}
+			m.mode = m.confirmBackMode
 			m.pending = nil
 			m.confirmText = ""
 			m.actionInFlight = true
@@ -421,7 +444,10 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		action := *m.pending
-		m.mode = modeDetail
+		if m.confirmBackMode == 0 {
+			m.confirmBackMode = modeDetail
+		}
+		m.mode = m.confirmBackMode
 		m.pending = nil
 		m.confirmText = ""
 		m.actionInFlight = true

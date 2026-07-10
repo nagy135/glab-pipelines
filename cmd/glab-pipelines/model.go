@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const maxTraceRetries = 3
+
 func (m model) Init() tea.Cmd {
 	return fetchPipelinesCmd(m.repo, m.status, m.limit, m.listRequest)
 }
@@ -47,7 +49,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		updatedPane := false
-		relevant := m.mode == modeDetail && msg.pid == m.detailID
+		relevant := m.detailVisible(msg.pid)
 		for i := range m.logPanes {
 			if m.logPanes[i].Mode == modeDetail && m.logPanes[i].DetailID == msg.pid {
 				relevant = true
@@ -79,7 +81,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		if m.mode != modeDetail || msg.pid != m.detailID {
+		if !m.detailVisible(msg.pid) {
 			if updatedPane && msg.err != nil {
 				m.message = msg.err.Error()
 			}
@@ -87,14 +89,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.detailLoading = false
 		if msg.err != nil {
-			m.message = msg.err.Error()
+			if m.mode != modeConfirm {
+				m.message = msg.err.Error()
+			}
 			return m, tea.Batch(soundCmd, pollCmd)
 		}
 		m.detail = &msg.detail
 		if m.jobsCursor >= len(m.detail.DisplayJobs) {
 			m.jobsCursor = max(0, len(m.detail.DisplayJobs)-1)
 		}
-		m.message = ""
+		if m.mode != modeConfirm {
+			m.message = ""
+		}
 		return m, tea.Batch(soundCmd, pollCmd)
 	case actionMsg:
 		if msg.requestID != m.actionRequest {
@@ -118,6 +124,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		var soundCmd tea.Cmd
+		var forceRetry bool
+		m, forceRetry = m.recordLogResult(msg.jobID, msg.err)
 		if msg.job != nil && m.hasLogJob(msg.jobID) {
 			var sounds []jobSound
 			m, sounds = m.observeJobStatuses([]job{*msg.job})
@@ -125,12 +133,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if len(m.logPanes) > 0 {
 			updated := false
+			activeUpdated := false
 			for i := range m.logPanes {
 				pane := &m.logPanes[i]
 				if pane.Mode != modeLogs || pane.Job == nil || pane.Job.ID != msg.jobID {
 					continue
 				}
 				updated = true
+				activeUpdated = activeUpdated || pane.ID == m.activeLogPane
 				if msg.job != nil {
 					pane.Job = cloneJobPtr(msg.job)
 				}
@@ -168,14 +178,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if updated {
-				idx := m.logPaneIndex(m.activeLogPane)
-				if idx >= 0 {
-					m = m.restoreLogPane(m.logPanes[idx])
+				if activeUpdated && m.mode == modeLogs {
+					idx := m.logPaneIndex(m.activeLogPane)
+					if idx >= 0 {
+						m = m.restoreLogPane(m.logPanes[idx])
+					}
 				}
 				if msg.statusErr != nil && m.logJob != nil && m.logJob.ID == msg.jobID {
 					m.message = msg.statusErr.Error()
 				}
-				return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID))
+				return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID, forceRetry))
 			}
 		}
 		if m.logJob == nil || msg.jobID != m.logJob.ID {
@@ -193,7 +205,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.logs == "" {
 				m.logsViewport.SetContent(redStyle.Render(msg.err.Error()))
 			}
-			return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID))
+			return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID, forceRetry))
 		}
 		m.message = ""
 		if msg.statusErr != nil {
@@ -210,7 +222,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logsViewport.SetContent(m.renderLogContent())
 			m.logsViewport.SetYOffset(yOffset)
 			m = m.saveActiveLogPane()
-			return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID))
+			return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID, false))
 		}
 		if wasBottom {
 			m.logsViewport.GotoBottom()
@@ -218,7 +230,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logsViewport.SetYOffset(yOffset)
 		}
 		m = m.saveActiveLogPane()
-		return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID))
+		return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID, false))
 	case tickMsg:
 		if msg.pollID != m.detailPolls[msg.pid] || !m.watchesDetail(msg.pid) {
 			return m, nil
@@ -232,13 +244,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		var pollingJob *job
-		if m.mode == modeLogs && m.logJob != nil && msg.jobID == m.logJob.ID && shouldAutoRefreshLogs(m.logJob) {
+		if m.mode == modeLogs && m.logJob != nil && msg.jobID == m.logJob.ID && (msg.force || shouldAutoRefreshLogs(m.logJob)) {
 			pollingJob = cloneJobPtr(m.logJob)
 			m.logsLoading = true
 		}
 		for i := range m.logPanes {
 			pane := &m.logPanes[i]
-			if pane.Mode != modeLogs || pane.Job == nil || pane.Job.ID != msg.jobID || !shouldAutoRefreshLogs(pane.Job) {
+			if pane.Mode != modeLogs || pane.Job == nil || pane.Job.ID != msg.jobID || (!msg.force && !shouldAutoRefreshLogs(pane.Job)) {
 				continue
 			}
 			if pollingJob == nil {
@@ -256,8 +268,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) recordLogResult(jobID int64, err error) (model, bool) {
+	if err == nil {
+		if m.logFailures != nil {
+			delete(m.logFailures, jobID)
+		}
+		return m, false
+	}
+	if m.logFailures == nil {
+		m.logFailures = make(map[int64]int)
+	}
+	m.logFailures[jobID]++
+	return m, m.logFailures[jobID] <= maxTraceRetries
+}
+
 func (m model) watchesDetail(pid int) bool {
-	if m.mode == modeDetail && m.detailID == pid {
+	if m.detailVisible(pid) {
 		return true
 	}
 	for _, pane := range m.logPanes {
@@ -268,8 +294,19 @@ func (m model) watchesDetail(pid int) bool {
 	return false
 }
 
+func (m model) detailVisible(pid int) bool {
+	mode := m.mode
+	if mode == modeTheme {
+		mode = m.themeBackMode
+	}
+	if mode == modeConfirm {
+		mode = m.confirmBackMode
+	}
+	return (mode == modeDetail || mode == modeJobs) && m.detailID == pid
+}
+
 func (m model) setDetailLoading(pid int) model {
-	if m.mode == modeDetail && m.detailID == pid {
+	if m.detailVisible(pid) {
 		m.detailLoading = true
 	}
 	for i := range m.logPanes {
@@ -280,16 +317,19 @@ func (m model) setDetailLoading(pid int) model {
 	return m
 }
 
-func (m model) nextLogPoll(jobID int64, pollID int) tea.Cmd {
+func (m model) nextLogPoll(jobID int64, pollID int, force bool) tea.Cmd {
 	if pollID != m.logPolls[jobID] {
 		return nil
 	}
+	if force && m.hasLogJob(jobID) {
+		return tickLogsCmd(jobID, pollID, m.logRefresh, true)
+	}
 	if m.mode == modeLogs && m.logJob != nil && m.logJob.ID == jobID && shouldAutoRefreshLogs(m.logJob) {
-		return tickLogsCmd(jobID, pollID, m.logRefresh)
+		return tickLogsCmd(jobID, pollID, m.logRefresh, false)
 	}
 	for _, pane := range m.logPanes {
 		if pane.Mode == modeLogs && pane.Job != nil && pane.Job.ID == jobID && shouldAutoRefreshLogs(pane.Job) {
-			return tickLogsCmd(jobID, pollID, m.logRefresh)
+			return tickLogsCmd(jobID, pollID, m.logRefresh, false)
 		}
 	}
 	return nil

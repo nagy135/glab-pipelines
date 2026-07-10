@@ -125,9 +125,7 @@ func openURL(rawURL string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("open URL: %w", err)
 	}
-	if err := cmd.Process.Release(); err != nil {
-		return fmt.Errorf("release URL opener: %w", err)
-	}
+	go func() { _ = cmd.Wait() }()
 	return nil
 }
 
