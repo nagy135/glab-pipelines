@@ -52,12 +52,10 @@ func buildDisplayJobs(jobs []job) []uiJob {
 
 		row := rows[idx]
 		switch {
-		case j.Status == "manual":
+		case !j.Retried && (row.Current.Retried || j.ID > row.Current.ID):
 			row.Previous = betterPrevious(row.Previous, row.Current)
 			row.Current = j
-		case row.Current.Status == "manual":
-			row.Previous = betterPrevious(row.Previous, j)
-		case !j.Retried && (row.Current.Retried || j.ID > row.Current.ID):
+		case j.Status == "manual" && j.ID > row.Current.ID:
 			row.Previous = betterPrevious(row.Previous, row.Current)
 			row.Current = j
 		default:
@@ -85,6 +83,42 @@ func jobHasRun(j job) bool {
 
 func shouldAutoRefreshLogs(j *job) bool {
 	return j != nil && j.Status == "running"
+}
+
+func jobSoundForTransition(previous, current string) (jobSound, bool) {
+	if previous == "" || previous == current || isSoundTerminalStatus(previous) {
+		return 0, false
+	}
+	switch current {
+	case "success":
+		return jobSoundSuccess, true
+	case "failed":
+		return jobSoundFailure, true
+	default:
+		return 0, false
+	}
+}
+
+func isSoundTerminalStatus(status string) bool {
+	return status == "success" || status == "failed"
+}
+
+func (m model) observeJobStatuses(jobs []job) (model, []jobSound) {
+	if m.jobStatuses == nil {
+		m.jobStatuses = make(map[int64]string)
+	}
+	var sounds []jobSound
+	for _, j := range jobs {
+		previous := m.jobStatuses[j.ID]
+		if isSoundTerminalStatus(previous) {
+			continue
+		}
+		if sound, ok := jobSoundForTransition(previous, j.Status); ok {
+			sounds = append(sounds, sound)
+		}
+		m.jobStatuses[j.ID] = j.Status
+	}
+	return m, sounds
 }
 
 func augmentPreviousRuns(rows []uiJob, history []job, p pipeline) {

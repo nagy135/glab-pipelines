@@ -187,18 +187,6 @@ func (m model) splitActiveLogPane(direction int) model {
 	return m
 }
 
-func (m model) setActivePaneMode(mode int) model {
-	idx := m.logPaneIndex(m.activeLogPane)
-	if idx < 0 {
-		return m
-	}
-	m.logPanes[idx] = m.currentLogPaneState(m.activeLogPane)
-	m.logPanes[idx].Mode = mode
-	m.logPanes[idx].Loading = m.paneModeLoading(mode)
-	m.mode = mode
-	return m.restoreLogPane(m.logPanes[idx])
-}
-
 func (m model) paneModeLoading(mode int) bool {
 	switch mode {
 	case modePipelines:
@@ -745,11 +733,4 @@ func renderPaneBox(body string, active bool, loading bool, width, height int) st
 		Border(border).
 		BorderForeground(borderColor).
 		Render(body)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

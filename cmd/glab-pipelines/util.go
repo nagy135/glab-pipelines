@@ -2,9 +2,13 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os/exec"
+	"runtime"
 	"strings"
-	"time"
+	"unicode"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func (p pipeline) UpdatedOrCreated() string {
@@ -12,18 +16,6 @@ func (p pipeline) UpdatedOrCreated() string {
 		return p.UpdatedAt
 	}
 	return p.CreatedAt
-}
-
-func parseAPITime(value string) time.Time {
-	if value == "" {
-		return time.Time{}
-	}
-	t, err := time.Parse(time.RFC3339Nano, value)
-	if err == nil {
-		return t
-	}
-	t, _ = time.Parse(time.RFC3339, value)
-	return t
 }
 
 func shortTime(value string) string {
@@ -82,14 +74,16 @@ func formatPipelineDuration(d *float64) string {
 }
 
 func truncate(value string, limit int) string {
-	r := []rune(value)
-	if len(r) <= limit {
+	if limit <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(value) <= limit {
 		return value
 	}
-	if limit <= 1 {
-		return string(r[:limit])
+	if limit == 1 {
+		return ansi.Truncate(value, limit, "")
 	}
-	return string(r[:limit-1]) + "~"
+	return ansi.Truncate(value, limit, "~")
 }
 
 func moveUp(cursor, count int) int {
@@ -112,27 +106,40 @@ func moveDown(cursor, count int) int {
 	return cursor + 1
 }
 
-func repoLabel(repo string) string {
-	if repo == "" {
-		return ""
+func openURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+		return fmt.Errorf("refusing to open invalid web URL")
 	}
-	return "on " + repo + "  "
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", rawURL)
+	case "linux":
+		cmd = exec.Command("xdg-open", rawURL)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", rawURL)
+	default:
+		return fmt.Errorf("opening URLs is not supported on %s", runtime.GOOS)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("open URL: %w", err)
+	}
+	if err := cmd.Process.Release(); err != nil {
+		return fmt.Errorf("release URL opener: %w", err)
+	}
+	return nil
 }
 
-func openURL(url string) {
-	if url == "" {
-		return
-	}
-	cmd := exec.Command("open", url)
-	if err := cmd.Start(); err == nil {
-		return
-	}
-	_ = exec.Command("xdg-open", url).Start()
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+func sanitizeTerminalText(value string) string {
+	value = ansi.Strip(value)
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\t' {
+			return r
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, value)
 }

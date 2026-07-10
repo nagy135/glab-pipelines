@@ -19,7 +19,7 @@ glab auth login
 Build the binary from the repository root:
 
 ```sh
-go build -o bin/glab-pipelines ./cmd/glab-pipelines
+mkdir -p bin && go build -o bin/glab-pipelines ./cmd/glab-pipelines
 ```
 
 Or use the Makefile:
@@ -78,6 +78,8 @@ GLAB_TUI_THEME=default     # startup color theme override
 
 Theme picker selections are saved to `~/.local/share/glab-pipelines/theme`. Active border selections are saved to `~/.local/share/glab-pipelines/border`.
 
+While pipeline details or running job logs are being watched, a short ascending cue plays when a job succeeds and a descending cue plays when a job fails. Split panes continue watching independently.
+
 Themes: `default`, `gruvbox-material`, `tokyo-night`, `catppuccin`, `gruvbox`, `nord`, `dracula`, `kanagawa`, `everforest`, `rose-pine`, `onedark`, `solarized-dark`, `ayu`, `material`, `nightfox`, `sonokai`, `moonfly`, `oceanic-next`, `palenight`, `monokai`, `papercolor`, `edge`.
 
 ## Key Bindings
@@ -111,7 +113,8 @@ Pipeline detail:
 - `l`: open logs for the selected job in the focused split
 - `r`: refresh
 - `o`: open pipeline in browser
-- `q`: go back
+- `q`: close the focused split, or quit with one pane
+- `esc`: go back
 
 Jobs list:
 
@@ -140,7 +143,8 @@ Logs:
 - `n`: next job, or next search match after confirming search
 - `N`: previous search match after confirming search
 - `r`: reload
-- `q`: go back, or return the focused split to pipeline detail when split
+- `q`: close the focused split, or quit with one pane
+- `esc`: go back
 
 ## Development
 
@@ -156,10 +160,10 @@ make build
 Equivalent Go commands:
 
 ```sh
-gofmt -w cmd
+go fmt ./...
 go mod tidy
 go test ./...
-go build -o bin/glab-pipelines ./cmd/glab-pipelines
+mkdir -p bin && go build -o bin/glab-pipelines ./cmd/glab-pipelines
 ```
 
 ## Repository Layout

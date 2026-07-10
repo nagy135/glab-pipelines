@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -98,26 +100,44 @@ func (m model) refreshLogSearchMatches() model {
 }
 
 func findLogSearchMatches(logs, query string) []logSearchMatch {
-	query = strings.ToLower(query)
+	query = strings.Map(unicode.ToLower, query)
 	if query == "" {
 		return nil
 	}
 	lines := strings.Split(logs, "\n")
 	matches := make([]logSearchMatch, 0)
 	for i, line := range lines {
-		lineLower := strings.ToLower(line)
+		lineLower, offsets := foldCaseWithOffsets(line)
 		for offset := 0; offset <= len(lineLower); {
 			idx := strings.Index(lineLower[offset:], query)
 			if idx < 0 {
 				break
 			}
-			start := offset + idx
-			end := start + len(query)
-			matches = append(matches, logSearchMatch{Line: i, Start: start, End: end})
-			offset = end
+			foldedStart := offset + idx
+			foldedEnd := foldedStart + len(query)
+			start, startOK := offsets[foldedStart]
+			end, endOK := offsets[foldedEnd]
+			if startOK && endOK {
+				matches = append(matches, logSearchMatch{Line: i, Start: start, End: end})
+			}
+			offset = foldedEnd
 		}
 	}
 	return matches
+}
+
+func foldCaseWithOffsets(value string) (string, map[int]int) {
+	var folded strings.Builder
+	offsets := map[int]int{0: 0}
+	for sourceOffset := 0; sourceOffset < len(value); {
+		r, size := utf8.DecodeRuneInString(value[sourceOffset:])
+		foldedOffset := folded.Len()
+		offsets[foldedOffset] = sourceOffset
+		folded.WriteRune(unicode.ToLower(r))
+		sourceOffset += size
+		offsets[folded.Len()] = sourceOffset
+	}
+	return folded.String(), offsets
 }
 
 func logSearchMatchNear(matches []logSearchMatch, line int, direction int) int {

@@ -21,7 +21,11 @@ else
 fi
 
 if [[ "$needs_rebuild" -eq 1 ]]; then
-  (cd "$ROOT" && go mod tidy && go build -o "$BIN" ./cmd/glab-pipelines)
+	tmp="$BIN.tmp.$$"
+	trap 'rm -f "$tmp"' EXIT
+	(cd "$ROOT" && go build -mod=readonly -o "$tmp" ./cmd/glab-pipelines)
+	mv "$tmp" "$BIN"
+	trap - EXIT
 fi
 
 exec "$BIN" "$@"

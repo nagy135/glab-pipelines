@@ -31,14 +31,22 @@ func loadPipelineCache(repo, status string, limit int) ([]pipeline, bool) {
 		return nil, false
 	}
 	var cache pipelineCache
-	if err := json.Unmarshal(data, &cache); err != nil || cache.Version != pipelineCacheVersion {
+	if err := json.Unmarshal(data, &cache); err != nil ||
+		cache.Version != pipelineCacheVersion ||
+		cache.Repo != repo ||
+		cache.Status != status ||
+		cache.Limit != limit {
 		return nil, false
 	}
 	normalizePipelineCommitTitles(cache.Pipelines)
+	for i := range cache.Pipelines {
+		sanitizePipeline(&cache.Pipelines[i])
+	}
 	return cache.Pipelines, len(cache.Pipelines) > 0
 }
 
 func savePipelineCache(repo, status string, limit int, pipelines []pipeline) {
+	pipelines = append([]pipeline(nil), pipelines...)
 	normalizePipelineCommitTitles(pipelines)
 	path, err := pipelineCachePath(repo, status, limit)
 	if err != nil {
@@ -58,7 +66,24 @@ func savePipelineCache(repo, status string, limit int, pipelines []pipeline) {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(path, data, 0o644)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".pipelines-*.tmp")
+	if err != nil {
+		return
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		return
+	}
+	_ = os.Rename(tmpPath, path)
 }
 
 func normalizePipelineCommitTitles(pipelines []pipeline) {

@@ -2,12 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 )
+
+const glabAPITimeout = 60 * time.Second
 
 func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 	var all []pipeline
@@ -20,24 +25,37 @@ func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 	}
 	seen := map[int]bool{}
 	for _, st := range statuses {
-		query := fmt.Sprintf("order_by=id&sort=desc&per_page=%d", limit)
-		if st != "" {
-			query = "status=" + st + "&" + query
-		}
-		out, err := glabAPI(repo, "", "projects/:id/pipelines?"+query)
-		if err != nil {
-			return nil, err
-		}
-		var pipelines []pipeline
-		if err := json.Unmarshal(out, &pipelines); err != nil {
-			return nil, err
-		}
-		for _, p := range pipelines {
-			if seen[p.ID] {
-				continue
+		pageSize := min(limit, 100)
+		for page, fetched := 1, 0; fetched < limit; page++ {
+			query := url.Values{
+				"order_by": {"id"},
+				"sort":     {"desc"},
+				"per_page": {fmt.Sprint(pageSize)},
+				"page":     {fmt.Sprint(page)},
 			}
-			seen[p.ID] = true
-			all = append(all, p)
+			if st != "" {
+				query.Set("status", st)
+			}
+			out, err := glabAPI(repo, "", "projects/:id/pipelines?"+query.Encode())
+			if err != nil {
+				return nil, err
+			}
+			var pipelines []pipeline
+			if err := json.Unmarshal(out, &pipelines); err != nil {
+				return nil, fmt.Errorf("decode pipelines page %d: %w", page, err)
+			}
+			for i := range pipelines {
+				sanitizePipeline(&pipelines[i])
+				if seen[pipelines[i].ID] {
+					continue
+				}
+				seen[pipelines[i].ID] = true
+				all = append(all, pipelines[i])
+			}
+			fetched += len(pipelines)
+			if len(pipelines) < pageSize {
+				break
+			}
 		}
 	}
 	sort.Slice(all, func(i, j int) bool {
@@ -47,7 +65,6 @@ func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 		all = all[:limit]
 	}
 	enrichPipelineMetadata(repo, all)
-	savePipelineCache(repo, status, limit, all)
 	return all, nil
 }
 
@@ -89,6 +106,7 @@ func enrichPipelineMetadata(repo string, pipelines []pipeline) {
 		if err := json.Unmarshal(out, &commit); err != nil {
 			continue
 		}
+		commit.Title = sanitizeTerminalText(commit.Title)
 		titles[sha] = commit.Title
 		pipelines[i].Commit.Title = commit.Title
 		pipelines[i].CommitTitle = commit.Title
@@ -102,9 +120,23 @@ func fetchPipeline(repo string, pid int) (pipeline, error) {
 	}
 	var p pipeline
 	if err := json.Unmarshal(out, &p); err != nil {
-		return pipeline{}, err
+		return pipeline{}, fmt.Errorf("decode pipeline %d: %w", pid, err)
 	}
+	sanitizePipeline(&p)
 	return p, nil
+}
+
+func fetchJob(repo string, jobID int64) (job, error) {
+	out, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/jobs/%d", jobID))
+	if err != nil {
+		return job{}, err
+	}
+	var j job
+	if err := json.Unmarshal(out, &j); err != nil {
+		return job{}, fmt.Errorf("decode job %d: %w", jobID, err)
+	}
+	sanitizeJob(&j)
+	return j, nil
 }
 
 func fetchDetail(repo string, pid int) (detail, error) {
@@ -113,13 +145,28 @@ func fetchDetail(repo string, pid int) (detail, error) {
 	if err != nil {
 		return d, err
 	}
-	jobsJSON, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/pipelines/%d/jobs?per_page=100&include_retried=true", pid))
-	if err != nil {
-		return d, err
-	}
 	d.Pipeline = p
-	if err := json.Unmarshal(jobsJSON, &d.Jobs); err != nil {
-		return d, err
+	for page := 1; ; page++ {
+		query := url.Values{
+			"include_retried": {"true"},
+			"per_page":        {"100"},
+			"page":            {fmt.Sprint(page)},
+		}
+		jobsJSON, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/pipelines/%d/jobs?%s", pid, query.Encode()))
+		if err != nil {
+			return d, err
+		}
+		var jobs []job
+		if err := json.Unmarshal(jobsJSON, &jobs); err != nil {
+			return d, fmt.Errorf("decode jobs for pipeline %d page %d: %w", pid, page, err)
+		}
+		for i := range jobs {
+			sanitizeJob(&jobs[i])
+		}
+		d.Jobs = append(d.Jobs, jobs...)
+		if len(jobs) < 100 {
+			break
+		}
 	}
 	sort.SliceStable(d.Jobs, func(i, j int) bool { return d.Jobs[i].ID < d.Jobs[j].ID })
 	d.DisplayJobs = buildDisplayJobs(d.Jobs)
@@ -137,7 +184,10 @@ func fetchProjectJobHistory(repo string, p pipeline) ([]job, error) {
 	}
 	var jobs []job
 	if err := json.Unmarshal(out, &jobs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode project job history: %w", err)
+	}
+	for i := range jobs {
+		sanitizeJob(&jobs[i])
 	}
 	filtered := jobs[:0]
 	for _, j := range jobs {
@@ -162,6 +212,12 @@ func samePipelineJob(j job, p pipeline) bool {
 }
 
 func glabAPI(repo, method, endpoint string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), glabAPITimeout)
+	defer cancel()
+	return glabAPIContext(ctx, repo, method, endpoint)
+}
+
+func glabAPIContext(ctx context.Context, repo, method, endpoint string) ([]byte, error) {
 	args := []string{"api"}
 	if repo != "" {
 		args = append(args, "-R", repo)
@@ -170,16 +226,37 @@ func glabAPI(repo, method, endpoint string) ([]byte, error) {
 		args = append(args, "--method", method)
 	}
 	args = append(args, endpoint)
-	cmd := exec.Command("glab", args...)
+	cmd := exec.CommandContext(ctx, "glab", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("glab api %s: %w", endpoint, ctx.Err())
 		}
-		return nil, fmt.Errorf("glab api failed: %s", msg)
+		msg := strings.TrimSpace(stderr.String())
+		if msg != "" {
+			return nil, fmt.Errorf("glab api %s: %w: %s", endpoint, err, sanitizeTerminalText(msg))
+		}
+		return nil, fmt.Errorf("glab api %s: %w", endpoint, err)
 	}
 	return stdout.Bytes(), nil
+}
+
+func sanitizePipeline(p *pipeline) {
+	p.Status = sanitizeTerminalText(p.Status)
+	p.Ref = sanitizeTerminalText(p.Ref)
+	p.SHA = sanitizeTerminalText(p.SHA)
+	p.Source = sanitizeTerminalText(p.Source)
+	p.WebURL = sanitizeTerminalText(p.WebURL)
+	p.Commit.Title = sanitizeTerminalText(p.Commit.Title)
+	p.CommitTitle = sanitizeTerminalText(p.CommitTitle)
+}
+
+func sanitizeJob(j *job) {
+	j.Name = sanitizeTerminalText(j.Name)
+	j.Status = sanitizeTerminalText(j.Status)
+	j.Stage = sanitizeTerminalText(j.Stage)
+	j.Ref = sanitizeTerminalText(j.Ref)
+	sanitizePipeline(&j.Pipeline)
 }

@@ -67,9 +67,10 @@ type detail struct {
 }
 
 type pendingAction struct {
-	Job      job
-	Endpoint string
-	Verb     string
+	Job        job
+	PipelineID int
+	Endpoint   string
+	Verb       string
 }
 
 type logSearchMatch struct {
@@ -116,6 +117,11 @@ type model struct {
 	message          string
 	loadingList      bool
 	listRequest      int
+	nextRequestID    int
+	detailRequests   map[int]int
+	detailPolls      map[int]int
+	logRequests      map[int64]int
+	logPolls         map[int64]int
 	list             []pipeline
 	listCursor       int
 	detailID         int
@@ -123,6 +129,8 @@ type model struct {
 	detailLoading    bool
 	jobsCursor       int
 	pending          *pendingAction
+	actionInFlight   bool
+	actionRequest    int
 	confirmText      string
 	confirmBackMode  int
 	logJob           *job
@@ -139,6 +147,7 @@ type model struct {
 	activeLogPane    int
 	nextLogPaneID    int
 	logSplitRoot     *logSplitNode
+	jobStatuses      map[int64]string
 	themeName        string
 	themeCursor      int
 	themeBackMode    int
@@ -152,21 +161,35 @@ type pipelinesMsg struct {
 }
 
 type detailMsg struct {
-	pid    int
-	detail detail
-	err    error
+	pid       int
+	requestID int
+	pollID    int
+	detail    detail
+	err       error
 }
 
 type actionMsg struct {
-	action pendingAction
-	err    error
+	requestID int
+	action    pendingAction
+	err       error
 }
 
 type logsMsg struct {
-	jobID int64
-	logs  string
-	err   error
+	jobID     int64
+	requestID int
+	pollID    int
+	logs      string
+	job       *job
+	err       error
+	statusErr error
 }
 
-type tickMsg struct{ pid int }
-type logTickMsg struct{ jobID int64 }
+type tickMsg struct {
+	pid    int
+	pollID int
+}
+
+type logTickMsg struct {
+	jobID  int64
+	pollID int
+}

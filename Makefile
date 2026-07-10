@@ -4,6 +4,7 @@ MAIN := ./cmd/glab-pipelines
 .PHONY: build run test fmt tidy clean
 
 build:
+	mkdir -p bin
 	go build -o bin/$(BINARY) $(MAIN)
 
 run:
@@ -13,7 +14,7 @@ test:
 	go test ./...
 
 fmt:
-	gofmt -w cmd
+	go fmt ./...
 
 tidy:
 	go mod tidy

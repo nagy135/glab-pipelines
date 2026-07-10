@@ -27,7 +27,9 @@ func initialModel(args []string) (model, error) {
 	themeValue := os.Getenv("GLAB_TUI_THEME")
 	if themeValue == "" {
 		if savedTheme, ok := loadSavedThemeName(); ok {
-			themeValue = savedTheme
+			if _, err := applyTheme(savedTheme); err == nil {
+				themeValue = savedTheme
+			}
 		}
 	}
 	themeName, err := applyTheme(themeValue)
@@ -42,8 +44,8 @@ func initialModel(args []string) (model, error) {
 	m := model{
 		status:      "active",
 		limit:       envInt("GLAB_TUI_LIMIT", 10),
-		refresh:     time.Duration(envInt("GLAB_TUI_REFRESH", 20)) * time.Second,
-		logRefresh:  time.Duration(envInt("GLAB_TUI_LOG_REFRESH", 3)) * time.Second,
+		refresh:     envDuration("GLAB_TUI_REFRESH", 20*time.Second),
+		logRefresh:  envDuration("GLAB_TUI_LOG_REFRESH", 3*time.Second),
 		mode:        modePipelines,
 		loadingList: true,
 		listRequest: 1,
@@ -106,4 +108,13 @@ func envInt(name string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func envDuration(name string, fallback time.Duration) time.Duration {
+	seconds := envInt(name, int(fallback/time.Second))
+	const maxSeconds = int64(^uint64(0)>>1) / int64(time.Second)
+	if int64(seconds) > maxSeconds {
+		return fallback
+	}
+	return time.Duration(seconds) * time.Second
 }

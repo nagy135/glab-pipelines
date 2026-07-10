@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
 
 func TestFindLogSearchMatchesCaseInsensitive(t *testing.T) {
 	logs := "starting\nERROR failed\ndone\nretry error"
@@ -29,5 +33,18 @@ func TestLogSearchMatchNearWraps(t *testing.T) {
 	}
 	if got := logSearchMatchNear(matches, 1, -1); got != 2 {
 		t.Fatalf("backward wrapped match index = %d, want 2", got)
+	}
+}
+
+func TestFindLogSearchMatchesPreservesUnicodeByteOffsets(t *testing.T) {
+	logs := "Échec\nİstanbul"
+	matches := findLogSearchMatches(logs, "é")
+	if len(matches) != 1 || matches[0] != (logSearchMatch{Line: 0, Start: 0, End: 2}) {
+		t.Fatalf("unicode matches = %+v", matches)
+	}
+
+	rendered := renderLogContentFor(logs, matches, 0)
+	if !strings.Contains(rendered, "É") || !utf8.ValidString(rendered) {
+		t.Fatalf("rendered match is invalid: %q", rendered)
 	}
 }

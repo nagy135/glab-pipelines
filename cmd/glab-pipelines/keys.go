@@ -142,7 +142,9 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m = m.saveActiveLogPane()
 		}
-		return m, tea.Batch(tea.ClearScreen, fetchDetailCmd(m.repo, m.detailID), tickDetailCmd(m.detailID, m.refresh))
+		var cmd tea.Cmd
+		m, cmd = m.requestDetail(m.detailID, true)
+		return m, tea.Batch(tea.ClearScreen, cmd)
 	}
 	return m, nil
 }
@@ -175,7 +177,9 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		m.detailLoading = true
 		m = m.saveActiveLogPane()
-		return m, fetchDetailCmd(m.repo, m.detailID)
+		var cmd tea.Cmd
+		m, cmd = m.requestDetail(m.detailID, true)
+		return m, cmd
 	case "up", "k":
 		if m.detail != nil {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, -1)
@@ -187,6 +191,10 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m = m.saveActiveLogPane()
 		}
 	case "S", "c":
+		if m.actionInFlight {
+			m.message = "a job action is already in progress"
+			return m, nil
+		}
 		if m.detail == nil || len(m.detail.DisplayJobs) == 0 {
 			m.message = "no jobs loaded"
 			return m, nil
@@ -201,6 +209,7 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.message = fmt.Sprintf("action not available for %s (%s)", job.Name, job.Status)
 			return m, nil
 		}
+		action.PipelineID = m.detailID
 		m.pending = &action
 		m.confirmText = ""
 		m.confirmBackMode = modeDetail
@@ -222,7 +231,9 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 	case "o":
 		if m.detail != nil && m.detail.Pipeline.WebURL != "" {
-			openURL(m.detail.Pipeline.WebURL)
+			if err := openURL(m.detail.Pipeline.WebURL); err != nil {
+				m.message = err.Error()
+			}
 		}
 	}
 	return m, nil
@@ -241,18 +252,25 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r", "R":
 		m.message = "refreshing jobs..."
 		m.detailLoading = true
-		return m, fetchDetailCmd(m.repo, m.detailID)
+		var cmd tea.Cmd
+		m, cmd = m.requestDetail(m.detailID, true)
+		return m, cmd
 	case "up", "k":
 		m.jobsCursor = moveUp(m.jobsCursor, len(m.detail.DisplayJobs))
 	case "down", "j":
 		m.jobsCursor = moveDown(m.jobsCursor, len(m.detail.DisplayJobs))
 	case "s", "c":
+		if m.actionInFlight {
+			m.message = "a job action is already in progress"
+			return m, nil
+		}
 		job := m.detail.DisplayJobs[m.jobsCursor].Current
 		action, ok := resolveAction(key.String(), job)
 		if !ok {
 			m.message = fmt.Sprintf("action not available for %s (%s)", job.Name, job.Status)
 			return m, nil
 		}
+		action.PipelineID = m.detailID
 		m.pending = &action
 		m.confirmText = ""
 		m.confirmBackMode = modeJobs
@@ -270,10 +288,9 @@ func (m model) openLogs(job job, backMode int) (tea.Model, tea.Cmd) {
 	}
 	m.logsViewport = viewport.New(max(1, m.width), max(1, m.height-4))
 	m = m.setActivePaneLogs(job, backMode)
-	cmds := []tea.Cmd{tea.ClearScreen, fetchLogsCmd(m.repo, job)}
-	if shouldAutoRefreshLogs(&job) {
-		cmds = append(cmds, tickLogsCmd(job.ID, m.logRefresh))
-	}
+	var fetchCmd tea.Cmd
+	m, fetchCmd = m.requestLogs(job, true)
+	cmds := []tea.Cmd{tea.ClearScreen, fetchCmd}
 	return m, tea.Batch(cmds...)
 }
 
@@ -319,7 +336,9 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.logsViewport.SetContent("loading logs...")
 		}
 		m = m.saveActiveLogPane()
-		return m, fetchLogsCmd(m.repo, *m.logJob)
+		var cmd tea.Cmd
+		m, cmd = m.requestLogs(*m.logJob, true)
+		return m, cmd
 	case "/":
 		return m.beginLogSearch().saveActiveLogPane(), nil
 	case "g":
@@ -363,7 +382,10 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			action := *m.pending
 			m.mode = modeDetail
 			m.pending = nil
-			return m, runActionCmd(m.repo, action)
+			m.confirmText = ""
+			m.actionInFlight = true
+			m.actionRequest++
+			return m, runActionCmd(m.repo, action, m.actionRequest)
 		case "n", "q", "esc":
 			m.pending = nil
 			if m.confirmBackMode == 0 {
@@ -402,7 +424,9 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeDetail
 		m.pending = nil
 		m.confirmText = ""
-		return m, runActionCmd(m.repo, action)
+		m.actionInFlight = true
+		m.actionRequest++
+		return m, runActionCmd(m.repo, action, m.actionRequest)
 	}
 	return m, nil
 }
