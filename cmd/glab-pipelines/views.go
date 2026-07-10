@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -193,12 +194,20 @@ func (m model) viewDetail() string {
 			if j.Status == "failed" && j.AllowFailure {
 				allow = dimStyle.Render(" (allowed to fail)")
 			}
+			name := lipgloss.NewStyle().Width(34).Render(cyanStyle.Bold(true).Render(truncate(j.Name, 32)))
+			progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, m.width-10))
 			if i == m.jobsCursor {
-				line := fmt.Sprintf("  %-32s %-26s %s%s", truncate(j.Name, 32), renderSelectedCombinedStatus(row), dimStyle.Render(formatDuration(displayDuration(row))), allow)
-				body.WriteString(selectedStyle.Render(line) + "\n")
+				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderSelectedCombinedStatus(row), "  ", dimStyle.Render(formatDuration(displayDuration(row))), allow)
+				if progress != "" {
+					line += "\n" + truncate(progress, max(1, m.width-10))
+				}
+				body.WriteString(jobRowCard(line, max(8, m.width-4), true) + "\n")
 			} else {
-				line := fmt.Sprintf("  %-32s %-26s %s%s", truncate(j.Name, 32), renderCombinedStatus(row), dimStyle.Render(formatDuration(displayDuration(row))), allow)
-				body.WriteString(line + "\n")
+				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderCombinedStatus(row), "  ", dimStyle.Render(formatDuration(displayDuration(row))), allow)
+				if progress != "" {
+					line += "\n" + truncate(progress, max(1, m.width-10))
+				}
+				body.WriteString(jobRowCard(line, max(8, m.width-4), false) + "\n")
 			}
 			body.WriteString(m.renderInlineLogLines(j, m.width-4, m.showInlineLogs))
 		}
@@ -249,6 +258,7 @@ func (m model) viewJobs() string {
 	}
 	for i, row := range m.detail.DisplayJobs {
 		j := row.Current
+		progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, m.width-4))
 		keys := availableKeys(j)
 		if logTarget(row).ID != j.ID {
 			if keys == "-" {
@@ -258,10 +268,16 @@ func (m model) viewJobs() string {
 		}
 		if i == m.jobsCursor {
 			line := fmt.Sprintf("%-26s %-24s %-18s %s", combinedStatusText(row), keys, truncate(j.Stage, 18), j.Name)
+			if progress != "" {
+				line += "\n  " + truncate(progress, max(1, m.width-4))
+			}
 			line = colorCombinedStatusInSelectedLine(line, row)
 			body.WriteString(selectedStyle.Render(line) + "\n")
 		} else {
 			line := fmt.Sprintf("%-26s %-24s %-18s %s", combinedStatusText(row), keys, truncate(j.Stage, 18), j.Name)
+			if progress != "" {
+				line += "\n  " + truncate(progress, max(1, m.width-4))
+			}
 			line = colorCombinedStatusInLine(line, row)
 			body.WriteString(line + "\n")
 		}

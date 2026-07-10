@@ -101,6 +101,39 @@ func TestLogUpdateIgnoresStaleResponse(t *testing.T) {
 	}
 }
 
+func TestLogUpdateRemembersFinishedJobDuration(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	duration := 75.0
+	m := model{
+		repo:        "group/project",
+		mode:        modeLogs,
+		logRefresh:  time.Second,
+		logJob:      &job{ID: 5, Name: "test", Status: "running"},
+		logRequests: map[int64]int{5: 1},
+		logPolls:    map[int64]int{5: 1},
+	}
+	updated, _ := m.Update(logsMsg{
+		jobID:     5,
+		requestID: 1,
+		pollID:    1,
+		job: &job{
+			ID:         5,
+			Name:       "test",
+			Status:     "success",
+			FinishedAt: "2026-07-10T10:00:00Z",
+			Duration:   &duration,
+		},
+	})
+	m = updated.(model)
+	if got := m.jobDurations["test"]; got.Average != 75 || got.Count != 1 || got.LastJobID != 5 {
+		t.Fatalf("recorded duration = %+v", got)
+	}
+	if got := loadJobDurations("group/project")["test"]; got.Average != 75 {
+		t.Fatalf("persisted duration = %+v", got)
+	}
+}
+
 func TestStalePollDoesNotStartRequest(t *testing.T) {
 	m := model{
 		mode:        modeDetail,

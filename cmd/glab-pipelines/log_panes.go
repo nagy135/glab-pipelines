@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -648,7 +649,7 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 	if p.CommitTitle != "" {
 		summaryRows++
 	}
-	rowsAvailable := max(1, height-summaryRows)
+	rowsAvailable := max(1, (height-summaryRows)/3)
 	start := pane.JobsCursor - rowsAvailable/2
 	if start < 0 {
 		start = 0
@@ -663,14 +664,25 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 	for i := start; i < end; i++ {
 		row := detail.DisplayJobs[i]
 		j := row.Current
+		progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, width-6))
 		if i == pane.JobsCursor {
-			line := fmt.Sprintf("%-24s %-16s %s", truncate(j.Name, 24), combinedStatusText(row), truncate(j.Stage, 16))
-			line = colorCombinedStatusInSelectedLine(line, row)
-			b.WriteString(selectedStyle.Render(truncate(line, width)) + "\n")
+			details := renderSelectedCombinedStatus(row) + "  " + truncate(j.Stage, 16)
+			nameWidth := max(1, min(24, width-lipgloss.Width(details)-6))
+			name := lipgloss.NewStyle().Width(nameWidth + 2).Render(cyanStyle.Bold(true).Render(truncate(j.Name, nameWidth)))
+			line := lipgloss.JoinHorizontal(lipgloss.Center, name, details)
+			if progress != "" {
+				line += "\n" + truncate(progress, max(1, width-6))
+			}
+			b.WriteString(jobRowCard(line, max(5, width), true) + "\n")
 		} else {
-			line := fmt.Sprintf("%-24s %-16s %s", truncate(j.Name, 24), combinedStatusText(row), truncate(j.Stage, 16))
-			line = colorCombinedStatusInLine(line, row)
-			b.WriteString(truncate(line, width) + "\n")
+			details := renderCombinedStatus(row) + "  " + truncate(j.Stage, 16)
+			nameWidth := max(1, min(24, width-lipgloss.Width(details)-6))
+			name := lipgloss.NewStyle().Width(nameWidth + 2).Render(cyanStyle.Bold(true).Render(truncate(j.Name, nameWidth)))
+			line := lipgloss.JoinHorizontal(lipgloss.Center, name, details)
+			if progress != "" {
+				line += "\n" + truncate(progress, max(1, width-6))
+			}
+			b.WriteString(jobRowCard(line, max(5, width), false) + "\n")
 		}
 		b.WriteString(m.renderInlineLogLines(j, width, pane.ShowInlineLogs))
 	}

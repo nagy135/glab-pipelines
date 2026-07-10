@@ -9,13 +9,16 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 const glabAPITimeout = 60 * time.Second
 
+// Keep metadata lookups concurrent without creating an unbounded burst of API calls.
+const pipelineMetadataWorkers = 4
+
 func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
-	var all []pipeline
 	statuses := []string{status}
 	if status == "active" {
 		statuses = activeStatuses
@@ -23,39 +26,27 @@ func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 	if status == "all" {
 		statuses = []string{""}
 	}
+	results := make(chan pipelineFetchResult, len(statuses))
+	for _, status := range statuses {
+		go func(status string) {
+			pipelines, err := fetchPipelinesByStatus(repo, status, limit)
+			results <- pipelineFetchResult{pipelines: pipelines, err: err}
+		}(status)
+	}
+
+	var all []pipeline
 	seen := map[int]bool{}
-	for _, st := range statuses {
-		pageSize := min(limit, 100)
-		for page, fetched := 1, 0; fetched < limit; page++ {
-			query := url.Values{
-				"order_by": {"id"},
-				"sort":     {"desc"},
-				"per_page": {fmt.Sprint(pageSize)},
-				"page":     {fmt.Sprint(page)},
+	for range statuses {
+		result := <-results
+		if result.err != nil {
+			return nil, result.err
+		}
+		for _, p := range result.pipelines {
+			if seen[p.ID] {
+				continue
 			}
-			if st != "" {
-				query.Set("status", st)
-			}
-			out, err := glabAPI(repo, "", "projects/:id/pipelines?"+query.Encode())
-			if err != nil {
-				return nil, err
-			}
-			var pipelines []pipeline
-			if err := json.Unmarshal(out, &pipelines); err != nil {
-				return nil, fmt.Errorf("decode pipelines page %d: %w", page, err)
-			}
-			for i := range pipelines {
-				sanitizePipeline(&pipelines[i])
-				if seen[pipelines[i].ID] {
-					continue
-				}
-				seen[pipelines[i].ID] = true
-				all = append(all, pipelines[i])
-			}
-			fetched += len(pipelines)
-			if len(pipelines) < pageSize {
-				break
-			}
+			seen[p.ID] = true
+			all = append(all, p)
 		}
 	}
 	sort.Slice(all, func(i, j int) bool {
@@ -68,49 +59,102 @@ func fetchPipelines(repo, status string, limit int) ([]pipeline, error) {
 	return all, nil
 }
 
+type pipelineFetchResult struct {
+	pipelines []pipeline
+	err       error
+}
+
+func fetchPipelinesByStatus(repo, status string, limit int) ([]pipeline, error) {
+	var all []pipeline
+	pageSize := min(limit, 100)
+	for page, fetched := 1, 0; fetched < limit; page++ {
+		query := url.Values{
+			"order_by": {"id"},
+			"sort":     {"desc"},
+			"per_page": {fmt.Sprint(pageSize)},
+			"page":     {fmt.Sprint(page)},
+		}
+		if status != "" {
+			query.Set("status", status)
+		}
+		out, err := glabAPI(repo, "", "projects/:id/pipelines?"+query.Encode())
+		if err != nil {
+			return nil, err
+		}
+		var pipelines []pipeline
+		if err := json.Unmarshal(out, &pipelines); err != nil {
+			return nil, fmt.Errorf("decode pipelines page %d: %w", page, err)
+		}
+		for i := range pipelines {
+			sanitizePipeline(&pipelines[i])
+		}
+		all = append(all, pipelines...)
+		fetched += len(pipelines)
+		if len(pipelines) < pageSize {
+			break
+		}
+	}
+	return all, nil
+}
+
 func enrichPipelineMetadata(repo string, pipelines []pipeline) {
-	titles := map[string]string{}
+	workers := min(pipelineMetadataWorkers, len(pipelines))
+	if workers == 0 {
+		return
+	}
+
+	indexes := make(chan int)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range indexes {
+				enrichPipelineMetadataItem(repo, &pipelines[i])
+			}
+		}()
+	}
 	for i := range pipelines {
-		if pipelines[i].Duration == nil {
-			if detail, err := fetchPipeline(repo, pipelines[i].ID); err == nil {
-				pipelines[i].Duration = detail.Duration
-				if pipelines[i].Commit.Title == "" {
-					pipelines[i].Commit.Title = detail.Commit.Title
-				}
-				if pipelines[i].CommitTitle == "" {
-					pipelines[i].CommitTitle = detail.CommitTitle
-				}
+		indexes <- i
+	}
+	close(indexes)
+	wg.Wait()
+}
+
+func enrichPipelineMetadataItem(repo string, p *pipeline) {
+	if p.Duration == nil {
+		if detail, err := fetchPipeline(repo, p.ID); err == nil {
+			p.Duration = detail.Duration
+			if p.Commit.Title == "" {
+				p.Commit.Title = detail.Commit.Title
+			}
+			if p.CommitTitle == "" {
+				p.CommitTitle = detail.CommitTitle
 			}
 		}
-		if pipelines[i].Commit.Title != "" {
-			pipelines[i].CommitTitle = pipelines[i].Commit.Title
-			continue
-		}
-		if pipelines[i].CommitTitle != "" {
-			pipelines[i].Commit.Title = pipelines[i].CommitTitle
-			continue
-		}
-		sha := pipelines[i].SHA
-		if sha == "" {
-			continue
-		}
-		if title, ok := titles[sha]; ok {
-			pipelines[i].CommitTitle = title
-			continue
-		}
-		out, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/repository/commits/%s", sha))
-		if err != nil {
-			continue
-		}
-		var commit commitInfo
-		if err := json.Unmarshal(out, &commit); err != nil {
-			continue
-		}
-		commit.Title = sanitizeTerminalText(commit.Title)
-		titles[sha] = commit.Title
-		pipelines[i].Commit.Title = commit.Title
-		pipelines[i].CommitTitle = commit.Title
 	}
+	if p.Commit.Title != "" {
+		p.CommitTitle = p.Commit.Title
+		return
+	}
+	if p.CommitTitle != "" {
+		p.Commit.Title = p.CommitTitle
+		return
+	}
+	if p.SHA == "" {
+		return
+	}
+	out, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/repository/commits/%s", p.SHA))
+	if err != nil {
+		return
+	}
+	var commit commitInfo
+	if err := json.Unmarshal(out, &commit); err != nil {
+		return
+	}
+	commit.Title = sanitizeTerminalText(commit.Title)
+	p.Commit.Title = commit.Title
+	p.CommitTitle = commit.Title
 }
 
 func fetchPipeline(repo string, pid int) (pipeline, error) {

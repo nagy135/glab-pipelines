@@ -89,6 +89,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var soundCmd tea.Cmd
 		var inlineLogsCmd tea.Cmd
 		if msg.err == nil {
+			m = m.rememberJobDurations(msg.detail.Jobs)
 			var sounds []jobSound
 			m, sounds = m.observeJobStatuses(msg.detail.Jobs)
 			soundCmd = playJobSoundsCmd(sounds)
@@ -157,6 +158,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var forceRetry bool
 		m, forceRetry = m.recordLogResult(msg.jobID, msg.err)
 		if msg.job != nil && m.hasLogJob(msg.jobID) {
+			m = m.rememberJobDurations([]job{*msg.job})
 			var sounds []jobSound
 			m, sounds = m.observeJobStatuses([]job{*msg.job})
 			soundCmd = playJobSoundsCmd(sounds)
@@ -319,6 +321,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmd, tickInlineLogsCmd(msg.pollID, m.logRefresh))
 	}
 	return m, nil
+}
+
+func (m model) rememberJobDurations(jobs []job) model {
+	if m.jobDurations == nil {
+		m.jobDurations = loadJobDurations(m.repo)
+	}
+	if recordJobDurations(m.jobDurations, jobs) {
+		saveJobDurations(m.repo, m.jobDurations)
+	}
+	return m
 }
 
 func (m model) recordLogResult(jobID int64, err error) (model, bool) {

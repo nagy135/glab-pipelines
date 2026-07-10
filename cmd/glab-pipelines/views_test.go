@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -45,6 +46,31 @@ func TestConfirmViewIsCenteredOverOriginatingView(t *testing.T) {
 	}
 }
 
+func TestDetailViewShowsTypicalDurationProgress(t *testing.T) {
+	started := time.Now().Add(-30 * time.Second)
+	m := model{
+		mode:         modeDetail,
+		width:        100,
+		height:       30,
+		detailID:     10,
+		jobDurations: map[string]jobDurationStat{"test": {Average: 60, Count: 1}},
+		detail: &detail{
+			Pipeline: pipeline{ID: 10, Status: "running"},
+			DisplayJobs: []uiJob{{Current: job{
+				Name:      "test",
+				Stage:     "test",
+				Status:    "running",
+				StartedAt: started.Format(time.RFC3339Nano),
+			}}},
+		},
+	}
+
+	view := ansi.Strip(m.viewDetail())
+	if !strings.Contains(view, "usually 1m00s") || !strings.Contains(view, "%") {
+		t.Fatalf("detail view does not show expected progress: %q", view)
+	}
+}
+
 func TestConfirmViewFitsNarrowTerminal(t *testing.T) {
 	m := model{
 		mode:            modeConfirm,
@@ -78,6 +104,7 @@ func TestDetailViewShowsPipelineTitleAndBranch(t *testing.T) {
 				Ref:         "feature/visible-branch",
 				CommitTitle: "Make pipeline details clearer",
 			},
+			DisplayJobs: []uiJob{{Current: job{Name: "test pipeline detail", Stage: "test", Status: "running"}}},
 		},
 	}
 
@@ -86,5 +113,8 @@ func TestDetailViewShowsPipelineTitleAndBranch(t *testing.T) {
 		if !strings.Contains(view, want) {
 			t.Fatalf("detail view does not contain %q: %q", want, view)
 		}
+	}
+	if strings.Count(view, "╭") < 2 || !strings.Contains(view, "test pipeline detail") {
+		t.Fatalf("detail view does not render bordered job names: %q", view)
 	}
 }

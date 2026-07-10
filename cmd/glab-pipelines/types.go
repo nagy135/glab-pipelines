@@ -162,6 +162,7 @@ type model struct {
 	nextLogPaneID     int
 	logSplitRoot      *logSplitNode
 	jobStatuses       map[int64]string
+	jobDurations      map[string]jobDurationStat
 	themeName         string
 	themeCursor       int
 	themeBackMode     int

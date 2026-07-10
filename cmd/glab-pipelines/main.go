@@ -72,6 +72,7 @@ func initialModel(args []string) (model, error) {
 	if cached, ok := loadPipelineCache(m.repo, m.status, m.limit); ok {
 		m.list = cached
 	}
+	m.jobDurations = loadJobDurations(m.repo)
 	return m, nil
 }
 

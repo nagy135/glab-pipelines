@@ -1,6 +1,11 @@
 package main
 
-import "strings"
+import (
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/bubbles/progress"
+)
 
 func resolveAction(key string, j job) (pendingAction, bool) {
 	if key == "s" {
@@ -151,6 +156,25 @@ func displayDuration(row uiJob) *float64 {
 		return row.Previous.Duration
 	}
 	return row.Current.Duration
+}
+
+func renderJobProgress(j job, typical float64, now time.Time, width int) string {
+	if j.Status != "running" || j.StartedAt == "" || typical <= 0 || width <= 0 {
+		return ""
+	}
+	started, err := time.Parse(time.RFC3339Nano, j.StartedAt)
+	if err != nil {
+		return ""
+	}
+	elapsed := now.Sub(started).Seconds()
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	barWidth := min(24, max(8, width-30))
+	bar := progress.New(progress.WithWidth(barWidth), progress.WithSolidFill(string(statusCyanColor)))
+	bar.EmptyColor = string(statusMutedColor)
+	elapsedSeconds := elapsed
+	return bar.ViewAs(elapsed/typical) + "  " + dimStyle.Render(formatDuration(&elapsedSeconds)+" / usually "+formatDuration(&typical))
 }
 
 func combinedStatus(row uiJob) string {
