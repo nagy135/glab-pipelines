@@ -168,7 +168,11 @@ func (m model) viewDetail() string {
 	}
 	p := m.detail.Pipeline
 	fmt.Fprintf(&body, "%s  %s\n", boldStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)), statusStyle(p.Status).Render(p.Status))
-	fmt.Fprintf(&body, "%s %s %s %s   %s %s\n", dimStyle.Render("ref"), cyanStyle.Render(p.Ref), dimStyle.Render("@"), shortSHA(p.SHA), dimStyle.Render("created"), shortTime(p.CreatedAt))
+	if p.CommitTitle != "" {
+		fmt.Fprintf(&body, "%s %s\n", dimStyle.Render("title"), boldStyle.Render(truncate(p.CommitTitle, max(1, m.width-10))))
+	}
+	branchMeta := fmt.Sprintf("  %s %s   %s %s", dimStyle.Render("@"), shortSHA(p.SHA), dimStyle.Render("created"), shortTime(p.CreatedAt))
+	body.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, dimStyle.Render("branch")+" ", branchBadge(p.Ref, max(5, m.width-42)), branchMeta) + "\n")
 	body.WriteString(mutedStyle.Render(p.WebURL) + "\n\n")
 	succeeded := 0
 	for _, j := range m.detail.DisplayJobs {

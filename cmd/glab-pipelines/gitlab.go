@@ -260,6 +260,12 @@ func sanitizePipeline(p *pipeline) {
 	p.WebURL = sanitizeTerminalText(p.WebURL)
 	p.Commit.Title = sanitizeTerminalText(p.Commit.Title)
 	p.CommitTitle = sanitizeTerminalText(p.CommitTitle)
+	if p.CommitTitle == "" {
+		p.CommitTitle = p.Commit.Title
+	}
+	if p.Commit.Title == "" {
+		p.Commit.Title = p.CommitTitle
+	}
 }
 
 func sanitizeJob(j *job) {

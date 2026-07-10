@@ -35,6 +35,29 @@ func TestDetailUpdateIgnoresStaleResponse(t *testing.T) {
 	}
 }
 
+func TestDetailUpdatePreservesTitleFromPipelineList(t *testing.T) {
+	m := model{
+		mode:           modeDetail,
+		detailID:       10,
+		refresh:        time.Second,
+		list:           []pipeline{{ID: 10, CommitTitle: "Merge branch 'feature'"}},
+		detailRequests: map[int]int{10: 1},
+		detailPolls:    map[int]int{10: 1},
+	}
+
+	updated, _ := m.Update(detailMsg{
+		pid:       10,
+		requestID: 1,
+		pollID:    1,
+		detail:    detail{Pipeline: pipeline{ID: 10, Status: "success"}},
+	})
+	m = updated.(model)
+
+	if m.detail == nil || m.detail.Pipeline.CommitTitle != "Merge branch 'feature'" {
+		t.Fatalf("detail title was not preserved from list: %+v", m.detail)
+	}
+}
+
 func TestDetailUpdateDoesNotMutateLogPane(t *testing.T) {
 	m := model{
 		mode:           modePipelines,

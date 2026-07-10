@@ -405,3 +405,12 @@ func hintBar(items ...string) string {
 func metaPill(label, value string) string {
 	return metaStyle.Render(label + " " + value)
 }
+
+func branchBadge(ref string, width int) string {
+	contentWidth := max(1, width-4)
+	return cyanStyle.
+		Bold(true).
+		Padding(0, 1).
+		Border(lipgloss.RoundedBorder()).
+		Render(truncate(ref, contentWidth))
+}

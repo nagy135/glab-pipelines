@@ -65,6 +65,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.requestID != m.detailRequests[msg.pid] || msg.pollID != m.detailPolls[msg.pid] {
 			return m, nil
 		}
+		if msg.err == nil && msg.detail.Pipeline.CommitTitle == "" {
+			for _, p := range m.list {
+				if p.ID == msg.pid {
+					msg.detail.Pipeline.CommitTitle = p.CommitTitle
+					msg.detail.Pipeline.Commit.Title = p.Commit.Title
+					break
+				}
+			}
+		}
 		updatedPane := false
 		relevant := m.detailVisible(msg.pid)
 		for i := range m.logPanes {

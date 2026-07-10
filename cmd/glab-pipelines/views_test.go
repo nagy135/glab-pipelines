@@ -64,3 +64,27 @@ func TestConfirmViewFitsNarrowTerminal(t *testing.T) {
 		}
 	}
 }
+
+func TestDetailViewShowsPipelineTitleAndBranch(t *testing.T) {
+	m := model{
+		mode:     modeDetail,
+		width:    100,
+		height:   30,
+		detailID: 10,
+		detail: &detail{
+			Pipeline: pipeline{
+				ID:          10,
+				Status:      "running",
+				Ref:         "feature/visible-branch",
+				CommitTitle: "Make pipeline details clearer",
+			},
+		},
+	}
+
+	view := ansi.Strip(m.viewDetail())
+	for _, want := range []string{"title Make pipeline details clearer", "branch", "feature/visible-branch", "╭"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("detail view does not contain %q: %q", want, view)
+		}
+	}
+}

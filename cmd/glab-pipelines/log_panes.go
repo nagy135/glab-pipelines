@@ -632,7 +632,11 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 	}
 	p := detail.Pipeline
 	fmt.Fprintf(&b, "%s  %s\n", boldStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)), statusStyle(p.Status).Render(p.Status))
-	fmt.Fprintf(&b, "%s %s %s %s\n", dimStyle.Render("ref"), cyanStyle.Render(truncate(p.Ref, max(1, width-14))), dimStyle.Render("@"), shortSHA(p.SHA))
+	if p.CommitTitle != "" {
+		fmt.Fprintf(&b, "%s %s\n", dimStyle.Render("title"), boldStyle.Render(truncate(p.CommitTitle, max(1, width-7))))
+	}
+	branchMeta := fmt.Sprintf("  %s %s", dimStyle.Render("@"), shortSHA(p.SHA))
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, dimStyle.Render("branch")+" ", branchBadge(p.Ref, max(5, width-20)), branchMeta) + "\n")
 	succeeded := 0
 	for _, j := range detail.DisplayJobs {
 		if strings.HasPrefix(combinedStatus(j), "success") {
@@ -640,7 +644,11 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 		}
 	}
 	fmt.Fprintf(&b, "%s %d/%d\n", dimStyle.Render("jobs succeeded:"), succeeded, len(detail.DisplayJobs))
-	rowsAvailable := max(1, height-6)
+	summaryRows := 8
+	if p.CommitTitle != "" {
+		summaryRows++
+	}
+	rowsAvailable := max(1, height-summaryRows)
 	start := pane.JobsCursor - rowsAvailable/2
 	if start < 0 {
 		start = 0
