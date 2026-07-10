@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const logPaneHeaderHeight = 2
@@ -462,7 +463,7 @@ func (m model) viewLogSplits() string {
 
 func (m model) renderSinglePane(body string) string {
 	width, height := m.logSplitAreaSize()
-	return renderPaneBox(body, true, m.paneModeLoading(m.mode), max(1, width-2), max(1, height-2))
+	return m.renderPaneBox(body, true, m.paneModeLoading(m.mode), max(1, width-2), max(1, height-2))
 }
 
 func (m model) renderLogSplitNode(node *logSplitNode, width, height int) string {
@@ -522,13 +523,13 @@ func (m model) renderLogPane(pane logPane, active bool, width, height int) strin
 	pane.Viewport.Height = innerHeight
 	title := logPaneTitle(pane)
 	if active {
-		title = selectedStyle.Render(truncate("[active] "+title, contentWidth))
+		title = selectedStyle.Render(truncate(title, contentWidth))
 	} else {
 		title = metaStyle.Render(truncate(title, contentWidth))
 	}
 	status := truncate(logPaneStatus(pane), contentWidth)
 	body := title + "\n" + dimStyle.Render(status) + "\n" + pane.Viewport.View()
-	return renderPaneBox(body, active, m.paneIsLoading(pane, active), contentWidth, contentHeight)
+	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), contentWidth, contentHeight)
 }
 
 func (m model) paneIsLoading(pane logPane, active bool) bool {
@@ -596,7 +597,7 @@ func logPaneStatus(pane logPane) string {
 func (m model) renderDetailPane(pane logPane, active bool, width, height int) string {
 	title := logPaneTitle(pane)
 	if active {
-		title = selectedStyle.Render(truncate("[active] "+title, width))
+		title = selectedStyle.Render(truncate(title, width))
 	} else {
 		title = metaStyle.Render(truncate(title, width))
 	}
@@ -611,7 +612,7 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 	}
 	if detail == nil {
 		b.WriteString(dimStyle.Render("loading pipeline...") + "\n")
-		return renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
+		return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
 	}
 	p := detail.Pipeline
 	fmt.Fprintf(&b, "%s  %s\n", boldStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)), statusStyle(p.Status).Render(p.Status))
@@ -652,13 +653,13 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 	if end < len(detail.DisplayJobs) {
 		b.WriteString(dimStyle.Render(truncate("...", width)) + "\n")
 	}
-	return renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
+	return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
 }
 
 func (m model) renderPipelinePane(pane logPane, active bool, width, height int) string {
 	title := logPaneTitle(pane)
 	if active {
-		title = selectedStyle.Render(truncate("[active] "+title, width))
+		title = selectedStyle.Render(truncate(title, width))
 	} else {
 		title = metaStyle.Render(truncate(title, width))
 	}
@@ -669,11 +670,11 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 	b.WriteString(dimStyle.Render(truncate(logPaneStatus(statusPane), width)) + "\n")
 	if m.loadingList && len(m.list) == 0 {
 		b.WriteString(dimStyle.Render("loading pipelines...") + "\n")
-		return renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
+		return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
 	}
 	if len(m.list) == 0 {
 		b.WriteString(yellowStyle.Render("no pipelines found") + "\n")
-		return renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
+		return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
 	}
 	b.WriteString(dimStyle.Render(truncate(fmt.Sprintf("%-9s %-12s %-18s %-9s %s", "ID", "STATUS", "REF", "SHA", "TITLE"), width)) + "\n")
 	rowsAvailable := max(1, height-4)
@@ -716,10 +717,10 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 	if end < len(m.list) {
 		b.WriteString(dimStyle.Render(truncate("...", width)) + "\n")
 	}
-	return renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
+	return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
 }
 
-func renderPaneBox(body string, active bool, loading bool, width, height int) string {
+func (m model) renderPaneBox(body string, active bool, loading bool, width, height int) string {
 	borderColor := paneBorderColor
 	border := lipgloss.RoundedBorder()
 	if active {
@@ -730,10 +731,27 @@ func renderPaneBox(body string, active bool, loading bool, width, height int) st
 	} else if loading {
 		borderColor = paneBorderLoadingColor
 	}
+	if loading {
+		body = renderTopLeftIndicator(body, m.activityIndicator(), width)
+	}
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
 		Border(border).
 		BorderForeground(borderColor).
 		Render(body)
+}
+
+func renderTopLeftIndicator(body, indicator string, width int) string {
+	indicatorWidth := ansi.StringWidth(indicator)
+	if width <= 0 || indicatorWidth <= 0 {
+		return body
+	}
+	parts := strings.SplitN(body, "\n", 2)
+	if indicatorWidth >= width {
+		parts[0] = truncate(indicator, width)
+	} else {
+		parts[0] = indicator + " " + truncate(parts[0], width-indicatorWidth-1)
+	}
+	return strings.Join(parts, "\n")
 }

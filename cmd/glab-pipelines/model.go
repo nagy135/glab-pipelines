@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -11,7 +12,19 @@ import (
 const maxTraceRetries = 3
 
 func (m model) Init() tea.Cmd {
-	return fetchPipelinesCmd(m.repo, m.status, m.limit, m.listRequest)
+	return tea.Batch(fetchPipelinesCmd(m.repo, m.status, m.limit, m.listRequest), m.activity.Tick)
+}
+
+func newActivitySpinner() spinner.Model {
+	return spinner.New(spinner.WithSpinner(spinner.Pulse))
+}
+
+func (m model) activityIndicator() string {
+	frame := spinner.Dot.Frames[0]
+	if len(m.activity.Spinner.Frames) > 0 {
+		frame = m.activity.View()
+	}
+	return yellowStyle.Render(frame)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -21,6 +34,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m = m.configureLogViewport()
 		return m, nil
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.activity, cmd = m.activity.Update(msg)
+		return m, cmd
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case pipelinesMsg:

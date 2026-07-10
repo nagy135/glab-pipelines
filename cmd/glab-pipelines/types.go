@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 )
 
@@ -120,6 +121,7 @@ type model struct {
 	mode              int
 	width             int
 	height            int
+	activity          spinner.Model
 	message           string
 	loadingList       bool
 	listRequest       int

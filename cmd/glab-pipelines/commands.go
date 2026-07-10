@@ -123,7 +123,7 @@ func (m model) requestInlineLogs(rows []uiJob) (model, tea.Cmd) {
 		if !supportsInlineLogs(j) || m.inlineLogsLoading[j.ID] {
 			continue
 		}
-		if snippet, ok := m.inlineLogs[j.ID]; j.Status == "success" && ok && snippet.Status == "success" {
+		if snippet, ok := m.inlineLogs[j.ID]; j.Status == "failed" && ok && snippet.Status == "failed" {
 			continue
 		}
 		m.nextRequestID++

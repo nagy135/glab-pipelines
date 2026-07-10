@@ -111,7 +111,7 @@ Pipeline detail:
 - `S`: start or retry selected job when available
 - `c`: cancel selected job when available
 - `l`: open logs for the selected job in the focused split
-- `L`: toggle the latest five log lines below running and successful jobs in the focused pane
+- `L`: toggle the latest five log lines below running and failed jobs in the focused pane
 - `r`: refresh
 - `o`: open pipeline in browser
 - `q`: close the focused split, or quit with one pane

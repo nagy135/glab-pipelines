@@ -47,6 +47,7 @@ func initialModel(args []string) (model, error) {
 		refresh:     envDuration("GLAB_TUI_REFRESH", 20*time.Second),
 		logRefresh:  envDuration("GLAB_TUI_LOG_REFRESH", 3*time.Second),
 		mode:        modePipelines,
+		activity:    newActivitySpinner(),
 		loadingList: true,
 		listRequest: 1,
 		themeName:   themeName,

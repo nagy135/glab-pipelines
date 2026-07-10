@@ -18,15 +18,15 @@ func TestLatestLogLines(t *testing.T) {
 	}
 }
 
-func TestToggleInlineLogsRequestsRunningAndSuccessfulJobs(t *testing.T) {
+func TestToggleInlineLogsRequestsRunningAndFailedJobs(t *testing.T) {
 	m := model{
 		mode:       modeDetail,
 		detailID:   10,
 		logRefresh: time.Second,
 		detail: &detail{DisplayJobs: []uiJob{
 			{Current: job{ID: 1, Status: "running"}},
-			{Current: job{ID: 2, Status: "success"}},
-			{Current: job{ID: 3, Status: "failed"}},
+			{Current: job{ID: 2, Status: "failed"}},
+			{Current: job{ID: 3, Status: "success"}},
 		}},
 	}
 	updated, cmd := m.handleDetailKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
@@ -70,6 +70,22 @@ func TestToggleInlineLogsOnlyChangesFocusedPane(t *testing.T) {
 	}
 }
 
+func TestRequestInlineLogsSkipsCachedFailedJob(t *testing.T) {
+	m := model{
+		inlineLogs: map[int64]inlineLogSnippet{
+			1: {Lines: []string{"failure"}, Status: "failed"},
+		},
+	}
+	updated, cmd := m.requestInlineLogs([]uiJob{
+		{Current: job{ID: 1, Status: "failed"}},
+		{Current: job{ID: 2, Status: "running"}},
+	})
+	m = updated
+	if cmd == nil || m.inlineLogsLoading[1] || !m.inlineLogsLoading[2] {
+		t.Fatalf("inline log requests = %#v", m.inlineLogsLoading)
+	}
+}
+
 func TestInlineLogUpdateIgnoresStaleResponse(t *testing.T) {
 	m := model{
 		showInlineLogs:    true,
@@ -86,10 +102,10 @@ func TestInlineLogUpdateIgnoresStaleResponse(t *testing.T) {
 	}
 
 	updated, _ = m.Update(inlineLogMsg{
-		jobID: 5, requestID: 3, pollID: 2, status: "success", lines: []string{"final"},
+		jobID: 5, requestID: 3, pollID: 2, status: "failed", lines: []string{"final"},
 	})
 	m = updated.(model)
-	if got := m.inlineLogs[5]; got.Status != "success" || !reflect.DeepEqual(got.Lines, []string{"final"}) || m.inlineLogsLoading[5] {
+	if got := m.inlineLogs[5]; got.Status != "failed" || !reflect.DeepEqual(got.Lines, []string{"final"}) || m.inlineLogsLoading[5] {
 		t.Fatalf("current response state = logs=%#v loading=%#v", got, m.inlineLogsLoading)
 	}
 }
@@ -102,25 +118,25 @@ func TestDetailViewRendersInlineLogsForSupportedStatuses(t *testing.T) {
 		showInlineLogs: true,
 		inlineLogs: map[int64]inlineLogSnippet{
 			1: {Lines: []string{"running output"}, Status: "running"},
-			2: {Lines: []string{"successful output"}, Status: "success"},
-			3: {Lines: []string{"failed output"}, Status: "failed"},
+			2: {Lines: []string{"failed output"}, Status: "failed"},
+			3: {Lines: []string{"successful output"}, Status: "success"},
 		},
 		detail: &detail{
 			Pipeline: pipeline{ID: 10, Status: "running"},
 			DisplayJobs: []uiJob{
 				{Current: job{ID: 1, Name: "build", Stage: "test", Status: "running"}},
-				{Current: job{ID: 2, Name: "package", Stage: "test", Status: "success"}},
-				{Current: job{ID: 3, Name: "deploy", Stage: "test", Status: "failed"}},
+				{Current: job{ID: 2, Name: "package", Stage: "test", Status: "failed"}},
+				{Current: job{ID: 3, Name: "deploy", Stage: "test", Status: "success"}},
 			},
 		},
 	}
 	view := ansi.Strip(m.viewDetail())
-	for _, want := range []string{"running output", "successful output", "inline logs on"} {
+	for _, want := range []string{"running output", "failed output", "inline logs on"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("detail view does not contain %q: %q", want, view)
 		}
 	}
-	if strings.Contains(view, "failed output") {
-		t.Fatalf("detail view rendered logs for a failed job: %q", view)
+	if strings.Contains(view, "successful output") {
+		t.Fatalf("detail view rendered logs for a successful job: %q", view)
 	}
 }
