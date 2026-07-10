@@ -1,5 +1,9 @@
 # glab-pipelines
 
+<p align="center">
+  <img src="docs/heading.png" alt="glab-pipelines terminal interface" width="100%">
+</p>
+
 Interactive terminal UI for viewing and managing GitLab pipelines through the GitLab CLI (`glab`).
 
 ## Prerequisites
@@ -92,6 +96,7 @@ Pipeline list:
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `x`: close focused split
+- `o`: close all other splits
 - `t`: open theme picker
 - `b`: cycle active border style
 - `r`: refresh
@@ -106,6 +111,7 @@ Pipeline detail:
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `x`: close focused split
+- `o`: close all other splits
 - `t`: open theme picker
 - `b`: cycle active border style
 - `S`: start or retry selected job when available
@@ -113,7 +119,6 @@ Pipeline detail:
 - `l`: open logs for the selected job in the focused split
 - `L`: toggle the latest five log lines below running and failed jobs in the focused pane
 - `r`: refresh
-- `o`: open pipeline in browser
 - `q`: close the focused split, or quit with one pane
 - `esc`: go back
 
@@ -138,6 +143,7 @@ Logs:
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `x`: close focused split
+- `o`: close all other splits
 - `/`: search logs incrementally
 - `t`: open theme picker
 - `b`: cycle active border style

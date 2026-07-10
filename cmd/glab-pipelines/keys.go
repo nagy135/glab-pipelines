@@ -110,6 +110,8 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.splitActiveLogPane(logSplitVertical), tea.ClearScreen
 	case "x":
 		return m.closeActiveLogPane(), tea.ClearScreen
+	case "o":
+		return m.keepActiveLogPaneOnly(), tea.ClearScreen
 	case "ctrl+h":
 		return m.focusLogPane("h"), nil
 	case "ctrl+j":
@@ -166,6 +168,8 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.splitActiveLogPane(logSplitVertical), tea.ClearScreen
 	case "x":
 		return m.closeActiveLogPane(), tea.ClearScreen
+	case "o":
+		return m.keepActiveLogPaneOnly(), tea.ClearScreen
 	case "ctrl+h":
 		return m.focusLogPane("h"), nil
 	case "ctrl+j":
@@ -249,12 +253,6 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeJobs
 		m.message = ""
 		return m, tea.ClearScreen
-	case "o":
-		if m.detail != nil && m.detail.Pipeline.WebURL != "" {
-			if err := openURL(m.detail.Pipeline.WebURL); err != nil {
-				m.message = err.Error()
-			}
-		}
 	}
 	return m, nil
 }
@@ -325,6 +323,8 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.splitActiveLogPane(logSplitVertical), tea.ClearScreen
 	case "x":
 		return m.closeActiveLogPane(), tea.ClearScreen
+	case "o":
+		return m.keepActiveLogPaneOnly(), tea.ClearScreen
 	case "ctrl+h":
 		return m.focusLogPane("h"), nil
 	case "ctrl+j":

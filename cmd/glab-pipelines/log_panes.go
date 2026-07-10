@@ -269,6 +269,22 @@ func (m model) closeActiveLogPane() model {
 	return m
 }
 
+func (m model) keepActiveLogPaneOnly() model {
+	if len(m.logPanes) <= 1 || m.activeLogPane == 0 {
+		return m
+	}
+	m = m.saveActiveLogPane()
+	idx := m.logPaneIndex(m.activeLogPane)
+	if idx < 0 {
+		return m
+	}
+	pane := m.logPanes[idx]
+	m.logPanes = []logPane{pane}
+	m.logSplitRoot = &logSplitNode{PaneID: pane.ID}
+	m.message = ""
+	return m.restoreLogPane(pane)
+}
+
 func removeLogPaneNode(node *logSplitNode, paneID int) (*logSplitNode, int) {
 	if node == nil {
 		return nil, 0
