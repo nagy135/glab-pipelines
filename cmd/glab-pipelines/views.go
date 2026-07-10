@@ -145,8 +145,14 @@ func (m model) viewPipelines() string {
 
 func (m model) viewDetail() string {
 	var b strings.Builder
-	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID))+" "+metaPill("refresh", m.refresh.String())) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	title := breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID)) + " " + metaPill("refresh", m.refresh.String())
+	inlineHint := "show inline"
+	if m.showInlineLogs {
+		title += " " + metaPill("inline logs", "on")
+		inlineHint = "hide inline"
+	}
+	b.WriteString(m.headerLine(title) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -190,10 +196,37 @@ func (m model) viewDetail() string {
 				line := fmt.Sprintf("  %-32s %-26s %s%s", truncate(j.Name, 32), renderCombinedStatus(row), dimStyle.Render(formatDuration(displayDuration(row))), allow)
 				body.WriteString(line + "\n")
 			}
+			body.WriteString(m.renderInlineLogLines(j, m.width-4, m.showInlineLogs))
 		}
 		body.WriteString("\n")
 	}
 	b.WriteString(m.renderSinglePane(body.String()))
+	return b.String()
+}
+
+func (m model) renderInlineLogLines(j job, width int, show bool) string {
+	if !show || !supportsInlineLogs(j) {
+		return ""
+	}
+	if width <= 0 {
+		width = 120
+	}
+	const prefix = "      | "
+	snippet, loaded := m.inlineLogs[j.ID]
+	if !loaded || snippet.Status != j.Status {
+		if m.inlineLogsLoading[j.ID] {
+			return dimStyle.Render(truncate(prefix+"loading latest log lines...", width)) + "\n"
+		}
+		return ""
+	}
+	if len(snippet.Lines) == 0 {
+		return dimStyle.Render(truncate(prefix+"(empty log)", width)) + "\n"
+	}
+	var b strings.Builder
+	for _, line := range snippet.Lines {
+		line = strings.ReplaceAll(line, "\t", "    ")
+		b.WriteString(dimStyle.Render(truncate(prefix+line, width)) + "\n")
+	}
 	return b.String()
 }
 

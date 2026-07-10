@@ -85,6 +85,10 @@ func shouldAutoRefreshLogs(j *job) bool {
 	return j != nil && j.Status == "running"
 }
 
+func supportsInlineLogs(j job) bool {
+	return j.Status == "running" || j.Status == "success"
+}
+
 func jobSoundForTransition(previous, current string) (jobSound, bool) {
 	if previous == "" || previous == current || isSoundTerminalStatus(previous) {
 		return 0, false

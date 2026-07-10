@@ -189,6 +189,17 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m, cmd = m.requestDetail(m.detailID, true)
 		return m, cmd
+	case "L":
+		m.showInlineLogs = !m.showInlineLogs
+		m = m.saveActiveLogPane()
+		m.inlineLogPollID++
+		m.inlineLogsLoading = make(map[int64]bool)
+		if !m.inlineLogsEnabled() {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m, cmd = m.requestInlineLogs(m.visibleInlineLogJobs())
+		return m, tea.Batch(cmd, tickInlineLogsCmd(m.inlineLogPollID, m.logRefresh))
 	case "up", "k":
 		if m.detail != nil {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, -1)

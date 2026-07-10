@@ -89,22 +89,23 @@ func (m model) currentLogPaneState(id int) logPane {
 		loading = m.logsLoading
 	}
 	return logPane{
-		ID:            id,
-		Mode:          m.mode,
-		ListCursor:    m.listCursor,
-		DetailID:      m.detailID,
-		Detail:        cloneDetailPtr(m.detail),
-		JobsCursor:    m.jobsCursor,
-		Job:           cloneJobPtr(m.logJob),
-		BackMode:      m.logBackMode,
-		Logs:          m.logs,
-		Loading:       loading,
-		Viewport:      m.logsViewport,
-		SearchMode:    m.logSearchMode,
-		SearchActive:  m.logSearchActive,
-		SearchQuery:   m.logSearchQuery,
-		SearchMatches: append([]logSearchMatch(nil), m.logSearchMatches...),
-		SearchIndex:   m.logSearchIndex,
+		ID:             id,
+		Mode:           m.mode,
+		ListCursor:     m.listCursor,
+		DetailID:       m.detailID,
+		Detail:         cloneDetailPtr(m.detail),
+		JobsCursor:     m.jobsCursor,
+		Job:            cloneJobPtr(m.logJob),
+		BackMode:       m.logBackMode,
+		Logs:           m.logs,
+		Loading:        loading,
+		Viewport:       m.logsViewport,
+		SearchMode:     m.logSearchMode,
+		SearchActive:   m.logSearchActive,
+		SearchQuery:    m.logSearchQuery,
+		SearchMatches:  append([]logSearchMatch(nil), m.logSearchMatches...),
+		SearchIndex:    m.logSearchIndex,
+		ShowInlineLogs: m.showInlineLogs,
 	}
 }
 
@@ -156,6 +157,7 @@ func (m model) restoreLogPane(p logPane) model {
 	m.logSearchQuery = p.SearchQuery
 	m.logSearchMatches = append([]logSearchMatch(nil), p.SearchMatches...)
 	m.logSearchIndex = p.SearchIndex
+	m.showInlineLogs = p.ShowInlineLogs
 	return m.configureLogViewport()
 }
 
@@ -645,6 +647,7 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 			line = colorCombinedStatusInLine(line, row)
 			b.WriteString(truncate(line, width) + "\n")
 		}
+		b.WriteString(m.renderInlineLogLines(j, width, pane.ShowInlineLogs))
 	}
 	if end < len(detail.DisplayJobs) {
 		b.WriteString(dimStyle.Render(truncate("...", width)) + "\n")

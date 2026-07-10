@@ -93,7 +93,7 @@ Environment:
 
 Keys:
   Pipeline list: j/k or up/down move, enter details, s/v split, ctrl+hjkl focus, x close split, t theme, b border, r refresh, q close/quit, Q quit app
-  Detail: j/k or up/down move jobs, s/v split, ctrl+hjkl focus, x close split, t theme, b border, l logs in focused split, S start/retry, c cancel, r refresh, q close, esc back, o open
+  Detail: j/k or up/down move jobs, s/v split, ctrl+hjkl focus, x close split, t theme, b border, l logs in focused split, L inline logs in focused split, S start/retry, c cancel, r refresh, q close, esc back, o open
   Jobs: j/k or up/down move, s start/retry, c cancel, l logs, t theme, b border, r refresh, q back
   Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, s/v split, ctrl+hjkl focus, x close split, / search, t theme, b border, n next job or next match, N previous match, r reload, q close, esc back`)
 }

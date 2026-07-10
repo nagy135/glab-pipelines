@@ -2,9 +2,15 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+const (
+	inlineLogLineCount = 5
+	inlineLogTailBytes = 64 * 1024
 )
 
 func fetchPipelinesCmd(repo, status string, limit int, requestID int) tea.Cmd {
@@ -41,6 +47,26 @@ func tickLogsCmd(jobID int64, pollID int, refresh time.Duration, force bool) tea
 	return tea.Tick(refresh, func(time.Time) tea.Msg {
 		return logTickMsg{jobID: jobID, pollID: pollID, force: force}
 	})
+}
+
+func fetchInlineLogCmd(repo string, j job, requestID, pollID int) tea.Cmd {
+	return func() tea.Msg {
+		endpoint := fmt.Sprintf("projects/:id/jobs/%d/trace", j.ID)
+		header := fmt.Sprintf("Range: bytes=-%d", inlineLogTailBytes)
+		out, err := glabAPIWithHeaders(repo, "", endpoint, header)
+		return inlineLogMsg{
+			jobID:     j.ID,
+			requestID: requestID,
+			pollID:    pollID,
+			status:    j.Status,
+			lines:     latestLogLines(sanitizeTerminalText(string(out)), inlineLogLineCount),
+			err:       err,
+		}
+	}
+}
+
+func tickInlineLogsCmd(pollID int, refresh time.Duration) tea.Cmd {
+	return tea.Tick(refresh, func(time.Time) tea.Msg { return inlineLogTickMsg{pollID: pollID} })
 }
 
 func runActionCmd(repo string, action pendingAction, requestID int) tea.Cmd {
@@ -82,4 +108,40 @@ func (m model) requestLogs(j job, restartPolling bool) (model, tea.Cmd) {
 	m.nextRequestID++
 	m.logRequests[j.ID] = m.nextRequestID
 	return m, fetchLogsCmd(m.repo, j, m.nextRequestID, m.logPolls[j.ID])
+}
+
+func (m model) requestInlineLogs(rows []uiJob) (model, tea.Cmd) {
+	if m.inlineLogRequests == nil {
+		m.inlineLogRequests = make(map[int64]int)
+	}
+	if m.inlineLogsLoading == nil {
+		m.inlineLogsLoading = make(map[int64]bool)
+	}
+	var cmds []tea.Cmd
+	for _, row := range rows {
+		j := row.Current
+		if !supportsInlineLogs(j) || m.inlineLogsLoading[j.ID] {
+			continue
+		}
+		if snippet, ok := m.inlineLogs[j.ID]; j.Status == "success" && ok && snippet.Status == "success" {
+			continue
+		}
+		m.nextRequestID++
+		m.inlineLogRequests[j.ID] = m.nextRequestID
+		m.inlineLogsLoading[j.ID] = true
+		cmds = append(cmds, fetchInlineLogCmd(m.repo, j, m.nextRequestID, m.inlineLogPollID))
+	}
+	return m, tea.Batch(cmds...)
+}
+
+func latestLogLines(logs string, count int) []string {
+	logs = strings.TrimRight(logs, "\r\n")
+	if logs == "" || count <= 0 {
+		return nil
+	}
+	lines := strings.Split(logs, "\n")
+	if len(lines) > count {
+		lines = lines[len(lines)-count:]
+	}
+	return lines
 }

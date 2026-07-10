@@ -217,13 +217,22 @@ func glabAPI(repo, method, endpoint string) ([]byte, error) {
 	return glabAPIContext(ctx, repo, method, endpoint)
 }
 
-func glabAPIContext(ctx context.Context, repo, method, endpoint string) ([]byte, error) {
+func glabAPIWithHeaders(repo, method, endpoint string, headers ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), glabAPITimeout)
+	defer cancel()
+	return glabAPIContext(ctx, repo, method, endpoint, headers...)
+}
+
+func glabAPIContext(ctx context.Context, repo, method, endpoint string, headers ...string) ([]byte, error) {
 	args := []string{"api"}
 	if repo != "" {
 		args = append(args, "-R", repo)
 	}
 	if method != "" {
 		args = append(args, "--method", method)
+	}
+	for _, header := range headers {
+		args = append(args, "-H", header)
 	}
 	args = append(args, endpoint)
 	cmd := exec.CommandContext(ctx, "glab", args...)

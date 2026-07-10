@@ -61,11 +61,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		pollCmd := tickDetailCmd(msg.pid, msg.pollID, m.refresh)
 		var soundCmd tea.Cmd
+		var inlineLogsCmd tea.Cmd
 		if msg.err == nil {
 			var sounds []jobSound
 			m, sounds = m.observeJobStatuses(msg.detail.Jobs)
 			soundCmd = playJobSoundsCmd(sounds)
 			m = m.updateLogJobSnapshots(msg.detail.Jobs)
+			if m.inlineLogsEnabledForDetail(msg.pid) {
+				m, inlineLogsCmd = m.requestInlineLogs(msg.detail.DisplayJobs)
+			}
 		}
 		for i := range m.logPanes {
 			if m.logPanes[i].Mode != modeDetail || m.logPanes[i].DetailID != msg.pid {
@@ -85,14 +89,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if updatedPane && msg.err != nil {
 				m.message = msg.err.Error()
 			}
-			return m, tea.Batch(soundCmd, pollCmd)
+			return m, tea.Batch(soundCmd, inlineLogsCmd, pollCmd)
 		}
 		m.detailLoading = false
 		if msg.err != nil {
 			if m.mode != modeConfirm {
 				m.message = msg.err.Error()
 			}
-			return m, tea.Batch(soundCmd, pollCmd)
+			return m, tea.Batch(soundCmd, inlineLogsCmd, pollCmd)
 		}
 		m.detail = &msg.detail
 		if m.jobsCursor >= len(m.detail.DisplayJobs) {
@@ -101,7 +105,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode != modeConfirm {
 			m.message = ""
 		}
-		return m, tea.Batch(soundCmd, pollCmd)
+		return m, tea.Batch(soundCmd, inlineLogsCmd, pollCmd)
 	case actionMsg:
 		if msg.requestID != m.actionRequest {
 			return m, nil
@@ -231,6 +235,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m = m.saveActiveLogPane()
 		return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID, false))
+	case inlineLogMsg:
+		if msg.pollID != m.inlineLogPollID || msg.requestID != m.inlineLogRequests[msg.jobID] {
+			return m, nil
+		}
+		delete(m.inlineLogsLoading, msg.jobID)
+		if msg.err != nil {
+			return m, nil
+		}
+		if m.inlineLogs == nil {
+			m.inlineLogs = make(map[int64]inlineLogSnippet)
+		}
+		m.inlineLogs[msg.jobID] = inlineLogSnippet{
+			Lines:  append([]string(nil), msg.lines...),
+			Status: msg.status,
+		}
+		return m, nil
 	case tickMsg:
 		if msg.pollID != m.detailPolls[msg.pid] || !m.watchesDetail(msg.pid) {
 			return m, nil
@@ -264,6 +284,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m, cmd = m.requestLogs(*pollingJob, false)
 		return m, cmd
+	case inlineLogTickMsg:
+		if !m.inlineLogsEnabled() || msg.pollID != m.inlineLogPollID {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m, cmd = m.requestInlineLogs(m.visibleInlineLogJobs())
+		return m, tea.Batch(cmd, tickInlineLogsCmd(msg.pollID, m.logRefresh))
 	}
 	return m, nil
 }
@@ -367,6 +394,56 @@ func (m model) updateLogJobSnapshots(jobs []job) model {
 		}
 	}
 	return m
+}
+
+func (m model) visibleInlineLogJobs() []uiJob {
+	byID := make(map[int64]uiJob)
+	if m.showInlineLogs && m.detail != nil && m.detailVisible(m.detailID) {
+		for _, row := range m.detail.DisplayJobs {
+			byID[row.Current.ID] = row
+		}
+	}
+	if len(m.logPanes) > 1 {
+		for _, pane := range m.logPanes {
+			if pane.Mode != modeDetail || pane.Detail == nil || !pane.ShowInlineLogs {
+				continue
+			}
+			for _, row := range pane.Detail.DisplayJobs {
+				byID[row.Current.ID] = row
+			}
+		}
+	}
+	rows := make([]uiJob, 0, len(byID))
+	for _, row := range byID {
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func (m model) inlineLogsEnabled() bool {
+	if m.showInlineLogs {
+		return true
+	}
+	for _, pane := range m.logPanes {
+		if pane.ShowInlineLogs {
+			return true
+		}
+	}
+	return false
+}
+
+func (m model) inlineLogsEnabledForDetail(pid int) bool {
+	if m.showInlineLogs && m.detailVisible(pid) {
+		return true
+	}
+	if len(m.logPanes) > 1 {
+		for _, pane := range m.logPanes {
+			if pane.Mode == modeDetail && pane.DetailID == pid && pane.ShowInlineLogs {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (m model) configureLogViewport() model {

@@ -79,23 +79,29 @@ type logSearchMatch struct {
 	End   int
 }
 
+type inlineLogSnippet struct {
+	Lines  []string
+	Status string
+}
+
 type logPane struct {
-	ID            int
-	Mode          int
-	ListCursor    int
-	DetailID      int
-	Detail        *detail
-	JobsCursor    int
-	Job           *job
-	BackMode      int
-	Logs          string
-	Loading       bool
-	Viewport      viewport.Model
-	SearchMode    bool
-	SearchActive  bool
-	SearchQuery   string
-	SearchMatches []logSearchMatch
-	SearchIndex   int
+	ID             int
+	Mode           int
+	ListCursor     int
+	DetailID       int
+	Detail         *detail
+	JobsCursor     int
+	Job            *job
+	BackMode       int
+	Logs           string
+	Loading        bool
+	Viewport       viewport.Model
+	SearchMode     bool
+	SearchActive   bool
+	SearchQuery    string
+	SearchMatches  []logSearchMatch
+	SearchIndex    int
+	ShowInlineLogs bool
 }
 
 type logSplitNode struct {
@@ -106,53 +112,58 @@ type logSplitNode struct {
 }
 
 type model struct {
-	repo             string
-	status           string
-	limit            int
-	refresh          time.Duration
-	logRefresh       time.Duration
-	mode             int
-	width            int
-	height           int
-	message          string
-	loadingList      bool
-	listRequest      int
-	nextRequestID    int
-	detailRequests   map[int]int
-	detailPolls      map[int]int
-	logRequests      map[int64]int
-	logPolls         map[int64]int
-	logFailures      map[int64]int
-	list             []pipeline
-	listCursor       int
-	detailID         int
-	detail           *detail
-	detailLoading    bool
-	jobsCursor       int
-	pending          *pendingAction
-	actionInFlight   bool
-	actionRequest    int
-	confirmText      string
-	confirmBackMode  int
-	logJob           *job
-	logBackMode      int
-	logs             string
-	logsLoading      bool
-	logsViewport     viewport.Model
-	logSearchMode    bool
-	logSearchActive  bool
-	logSearchQuery   string
-	logSearchMatches []logSearchMatch
-	logSearchIndex   int
-	logPanes         []logPane
-	activeLogPane    int
-	nextLogPaneID    int
-	logSplitRoot     *logSplitNode
-	jobStatuses      map[int64]string
-	themeName        string
-	themeCursor      int
-	themeBackMode    int
-	borderName       string
+	repo              string
+	status            string
+	limit             int
+	refresh           time.Duration
+	logRefresh        time.Duration
+	mode              int
+	width             int
+	height            int
+	message           string
+	loadingList       bool
+	listRequest       int
+	nextRequestID     int
+	detailRequests    map[int]int
+	detailPolls       map[int]int
+	logRequests       map[int64]int
+	logPolls          map[int64]int
+	logFailures       map[int64]int
+	list              []pipeline
+	listCursor        int
+	detailID          int
+	detail            *detail
+	detailLoading     bool
+	jobsCursor        int
+	pending           *pendingAction
+	actionInFlight    bool
+	actionRequest     int
+	confirmText       string
+	confirmBackMode   int
+	logJob            *job
+	logBackMode       int
+	logs              string
+	logsLoading       bool
+	logsViewport      viewport.Model
+	logSearchMode     bool
+	logSearchActive   bool
+	logSearchQuery    string
+	logSearchMatches  []logSearchMatch
+	logSearchIndex    int
+	showInlineLogs    bool
+	inlineLogs        map[int64]inlineLogSnippet
+	inlineLogRequests map[int64]int
+	inlineLogsLoading map[int64]bool
+	inlineLogPollID   int
+	logPanes          []logPane
+	activeLogPane     int
+	nextLogPaneID     int
+	logSplitRoot      *logSplitNode
+	jobStatuses       map[int64]string
+	themeName         string
+	themeCursor       int
+	themeBackMode     int
+	borderName        string
 }
 
 type pipelinesMsg struct {
@@ -194,4 +205,17 @@ type logTickMsg struct {
 	jobID  int64
 	pollID int
 	force  bool
+}
+
+type inlineLogMsg struct {
+	jobID     int64
+	requestID int
+	pollID    int
+	status    string
+	lines     []string
+	err       error
+}
+
+type inlineLogTickMsg struct {
+	pollID int
 }
