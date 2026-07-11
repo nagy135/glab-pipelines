@@ -194,15 +194,16 @@ func (m model) viewDetail() string {
 			if j.Status == "failed" && j.AllowFailure {
 				allow = dimStyle.Render(" (allowed to fail)")
 			}
-			name := lipgloss.NewStyle().Width(34).Render(cyanStyle.Bold(true).Render(truncate(j.Name, 32)))
 			progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, m.width-10))
 			if i == m.jobsCursor {
-				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderSelectedCombinedStatus(row), "  ", dimStyle.Render(formatDuration(displayDuration(row))), allow)
+				name := lipgloss.NewStyle().Width(34).Render(selectedStyle.Render(truncate(j.Name, 32)))
+				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderCombinedStatus(row), "  ", dimStyle.Render(formatDuration(displayDuration(row))), allow)
 				if progress != "" {
 					line += "\n" + truncate(progress, max(1, m.width-10))
 				}
 				body.WriteString(jobRowCard(line, max(8, m.width-4), true) + "\n")
 			} else {
+				name := lipgloss.NewStyle().Width(34).Render(cyanStyle.Bold(true).Render(truncate(j.Name, 32)))
 				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderCombinedStatus(row), "  ", dimStyle.Render(formatDuration(displayDuration(row))), allow)
 				if progress != "" {
 					line += "\n" + truncate(progress, max(1, m.width-10))

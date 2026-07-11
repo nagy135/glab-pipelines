@@ -26,6 +26,17 @@ func TestIdlePaneDoesNotShowSpinner(t *testing.T) {
 	}
 }
 
+func TestPaneReservesSpinnerSpaceWhileIdle(t *testing.T) {
+	m := model{activity: newActivitySpinner()}
+	loading := strings.Split(ansi.Strip(m.renderPaneBox("title\nbody", true, true, 20, 4)), "\n")
+	idle := strings.Split(ansi.Strip(m.renderPaneBox("title\nbody", true, false, 20, 4)), "\n")
+	loadingPrefix, _, _ := strings.Cut(loading[1], "title")
+	idlePrefix, _, _ := strings.Cut(idle[1], "title")
+	if ansi.StringWidth(loadingPrefix) != ansi.StringWidth(idlePrefix) {
+		t.Fatalf("title shifts when loading changes: loading=%q idle=%q", loading[1], idle[1])
+	}
+}
+
 func TestSpinnerTickAdvancesFrame(t *testing.T) {
 	m := model{activity: newActivitySpinner()}
 	before := ansi.Strip(m.activityIndicator())

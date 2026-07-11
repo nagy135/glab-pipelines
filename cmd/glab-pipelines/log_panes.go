@@ -767,9 +767,11 @@ func (m model) renderPaneBox(body string, active bool, loading bool, width, heig
 	} else if loading {
 		borderColor = paneBorderLoadingColor
 	}
-	if loading {
-		body = renderTopLeftIndicator(body, m.activityIndicator(), width)
+	indicator := m.activityIndicator()
+	if !loading {
+		indicator = strings.Repeat(" ", ansi.StringWidth(indicator))
 	}
+	body = renderTopLeftIndicator(body, indicator, width)
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).

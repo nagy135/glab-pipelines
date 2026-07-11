@@ -417,13 +417,12 @@ func branchBadge(ref string, width int) string {
 
 func jobRowCard(content string, width int, selected bool) string {
 	borderColor := paneBorderColor
+	style := lipgloss.NewStyle().
+		Width(max(1, width-4)).
+		Padding(0, 1).
+		Border(lipgloss.RoundedBorder())
 	if selected {
 		borderColor = paneBorderActiveColor
 	}
-	return lipgloss.NewStyle().
-		Width(max(1, width-4)).
-		Padding(0, 1).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		Render(content)
+	return style.BorderForeground(borderColor).Render(content)
 }
