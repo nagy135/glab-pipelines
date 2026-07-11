@@ -108,6 +108,7 @@ func (m model) currentLogPaneState(id int) logPane {
 		SearchMatches:  append([]logSearchMatch(nil), m.logSearchMatches...),
 		SearchIndex:    m.logSearchIndex,
 		ShowInlineLogs: m.showInlineLogs,
+		ScrollOffset:   m.scrollOffset,
 	}
 }
 
@@ -160,6 +161,7 @@ func (m model) restoreLogPane(p logPane) model {
 	m.logSearchMatches = append([]logSearchMatch(nil), p.SearchMatches...)
 	m.logSearchIndex = p.SearchIndex
 	m.showInlineLogs = p.ShowInlineLogs
+	m.scrollOffset = p.ScrollOffset
 	return m.configureLogViewport()
 }
 
@@ -480,7 +482,12 @@ func (m model) viewLogSplits() string {
 
 func (m model) renderSinglePane(body string) string {
 	width, height := m.logSplitAreaSize()
-	return m.renderPaneBox(body, true, m.paneModeLoading(m.mode), max(1, width-2), max(1, height-2))
+	contentWidth := max(1, width-2)
+	contentHeight := max(1, height-2)
+	if m.height > 0 {
+		body = renderScrollableBody(body, contentWidth, contentHeight, m.scrollOffset)
+	}
+	return m.renderPaneBox(body, true, m.paneModeLoading(m.mode), contentWidth, contentHeight)
 }
 
 func (m model) renderLogSplitNode(node *logSplitNode, width, height int) string {
@@ -545,7 +552,7 @@ func (m model) renderLogPane(pane logPane, active bool, width, height int) strin
 		title = metaStyle.Render(truncate(title, contentWidth))
 	}
 	status := truncate(logPaneStatus(pane), contentWidth)
-	body := title + "\n" + dimStyle.Render(status) + "\n" + pane.Viewport.View()
+	body := title + "\n" + dimStyle.Render(status) + "\n" + renderViewportBody(pane.Viewport.View(), contentWidth, innerHeight, pane.Viewport.YOffset, pane.Viewport.TotalLineCount())
 	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), contentWidth, contentHeight)
 }
 
@@ -645,23 +652,7 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 		}
 	}
 	fmt.Fprintf(&b, "%s %d/%d\n", dimStyle.Render("jobs succeeded:"), succeeded, len(detail.DisplayJobs))
-	summaryRows := 8
-	if p.CommitTitle != "" {
-		summaryRows++
-	}
-	rowsAvailable := max(1, (height-summaryRows)/3)
-	start := pane.JobsCursor - rowsAvailable/2
-	if start < 0 {
-		start = 0
-	}
-	if start+rowsAvailable > len(detail.DisplayJobs) {
-		start = max(0, len(detail.DisplayJobs)-rowsAvailable)
-	}
-	end := min(len(detail.DisplayJobs), start+rowsAvailable)
-	if start > 0 {
-		b.WriteString(dimStyle.Render(truncate("...", width)) + "\n")
-	}
-	for i := start; i < end; i++ {
+	for i := range detail.DisplayJobs {
 		row := detail.DisplayJobs[i]
 		j := row.Current
 		progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, width-6))
@@ -686,10 +677,8 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 		}
 		b.WriteString(m.renderInlineLogLines(j, width, pane.ShowInlineLogs))
 	}
-	if end < len(detail.DisplayJobs) {
-		b.WriteString(dimStyle.Render(truncate("...", width)) + "\n")
-	}
-	return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
+	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset)
+	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), width, height)
 }
 
 func (m model) renderPipelinePane(pane logPane, active bool, width, height int) string {
@@ -713,7 +702,6 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 		return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
 	}
 	b.WriteString(dimStyle.Render(truncate(fmt.Sprintf("%-9s %-12s %-18s %-9s %s", "ID", "STATUS", "REF", "SHA", "TITLE"), width)) + "\n")
-	rowsAvailable := max(1, height-4)
 	cursor := pane.ListCursor
 	if active {
 		cursor = m.listCursor
@@ -724,18 +712,7 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 	if cursor < 0 {
 		cursor = 0
 	}
-	start := cursor - rowsAvailable/2
-	if start < 0 {
-		start = 0
-	}
-	if start+rowsAvailable > len(m.list) {
-		start = max(0, len(m.list)-rowsAvailable)
-	}
-	end := min(len(m.list), start+rowsAvailable)
-	if start > 0 {
-		b.WriteString(dimStyle.Render(truncate("...", width)) + "\n")
-	}
-	for i := start; i < end; i++ {
+	for i := range m.list {
 		p := m.list[i]
 		sha := p.SHA
 		if len(sha) > 8 {
@@ -750,10 +727,8 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 			b.WriteString(line + "\n")
 		}
 	}
-	if end < len(m.list) {
-		b.WriteString(dimStyle.Render(truncate("...", width)) + "\n")
-	}
-	return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
+	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset)
+	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), width, height)
 }
 
 func (m model) renderPaneBox(body string, active bool, loading bool, width, height int) string {
@@ -792,4 +767,41 @@ func renderTopLeftIndicator(body, indicator string, width int) string {
 		parts[0] = indicator + " " + truncate(parts[0], width-indicatorWidth-1)
 	}
 	return strings.Join(parts, "\n")
+}
+
+func renderScrollableBody(body string, width, height, offset int) string {
+	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
+	if len(lines) <= height {
+		return body
+	}
+	maxOffset := len(lines) - height
+	offset = min(max(0, offset), maxOffset)
+	return renderViewportBody(strings.Join(lines[offset:offset+height], "\n"), width, height, offset, len(lines))
+}
+
+func renderViewportBody(body string, width, height, offset, total int) string {
+	if total <= height || height <= 0 || width <= 0 {
+		return body
+	}
+	lines := strings.Split(body, "\n")
+	thumbHeight := max(1, height*height/total)
+	maxOffset := max(1, total-height)
+	thumbStart := offset * (height - thumbHeight) / maxOffset
+	var b strings.Builder
+	for row := 0; row < height; row++ {
+		line := ""
+		if row < len(lines) {
+			line = truncate(lines[row], max(0, width-1))
+		}
+		line += strings.Repeat(" ", max(0, width-1-ansi.StringWidth(line)))
+		bar := dimStyle.Render("│")
+		if row >= thumbStart && row < thumbStart+thumbHeight {
+			bar = cyanStyle.Render("█")
+		}
+		b.WriteString(line + bar)
+		if row < height-1 {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }

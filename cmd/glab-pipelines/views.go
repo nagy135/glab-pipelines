@@ -106,7 +106,7 @@ func (m model) viewPipelines() string {
 	if m.repo != "" {
 		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+f/b", "page"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -153,7 +153,7 @@ func (m model) viewDetail() string {
 		inlineHint = "hide inline"
 	}
 	b.WriteString(m.headerLine(title) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+f/b", "page"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -247,7 +247,7 @@ func (m model) renderInlineLogLines(j job, width int, show bool) string {
 func (m model) viewJobs() string {
 	var b strings.Builder
 	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs")) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+f/b", "page"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
 	var body strings.Builder
 	if m.message != "" {
 		body.WriteString(yellowStyle.Render(m.message) + "\n")
@@ -300,7 +300,7 @@ func (m model) viewLogs() string {
 	if m.logSearchActive {
 		nHint = keyHint("n/N", "match")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), nHint, keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("ctrl+f/b", "page"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), nHint, keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -316,7 +316,7 @@ func (m model) viewLogs() string {
 		body.WriteString(status + "\n")
 	}
 	body.WriteString("\n")
-	body.WriteString(m.logsViewport.View())
+	body.WriteString(renderViewportBody(m.logsViewport.View(), m.logsViewport.Width, m.logsViewport.Height, m.logsViewport.YOffset, m.logsViewport.TotalLineCount()))
 	b.WriteString(m.renderSinglePane(body.String()))
 	return b.String()
 }

@@ -103,6 +103,7 @@ type logPane struct {
 	SearchMatches  []logSearchMatch
 	SearchIndex    int
 	ShowInlineLogs bool
+	ScrollOffset   int
 }
 
 type logSplitNode struct {
@@ -167,6 +168,7 @@ type model struct {
 	themeCursor       int
 	themeBackMode     int
 	borderName        string
+	scrollOffset      int
 }
 
 type pipelinesMsg struct {

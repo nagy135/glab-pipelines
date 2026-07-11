@@ -1,7 +1,7 @@
 # glab-pipelines
 
 <p align="center">
-  <img src="docs/heading.png" alt="glab-pipelines terminal interface" width="100%">
+  <img src="docs/heading.jpeg" alt="glab-pipelines terminal interface" width="100%">
 </p>
 
 Interactive terminal UI for viewing and managing GitLab pipelines through the GitLab CLI (`glab`).

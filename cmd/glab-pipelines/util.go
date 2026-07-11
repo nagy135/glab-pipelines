@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
@@ -21,6 +22,9 @@ func (p pipeline) UpdatedOrCreated() string {
 func shortTime(value string) string {
 	if value == "" {
 		return "--"
+	}
+	if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return parsed.In(time.Local).Format("2006-01-02 15:04:05")
 	}
 	value = strings.TrimSuffix(value, "Z")
 	if i := strings.Index(value, "."); i >= 0 {

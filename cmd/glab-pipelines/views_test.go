@@ -118,3 +118,15 @@ func TestDetailViewShowsPipelineTitleAndBranch(t *testing.T) {
 		t.Fatalf("detail view does not render bordered job names: %q", view)
 	}
 }
+
+func TestScrollableBodyAddsScrollbarAndUsesOffset(t *testing.T) {
+	body := strings.Join([]string{"one", "two", "three", "four", "five"}, "\n")
+	view := ansi.Strip(renderScrollableBody(body, 8, 3, 2))
+
+	if !strings.Contains(view, "three") || !strings.Contains(view, "five") {
+		t.Fatalf("scrolled view has the wrong lines: %q", view)
+	}
+	if strings.Contains(view, "one") || !strings.Contains(view, "█") {
+		t.Fatalf("scrolled view is missing clipping or scrollbar: %q", view)
+	}
+}
