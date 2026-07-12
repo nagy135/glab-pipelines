@@ -122,9 +122,12 @@ func enrichPipelineMetadata(repo string, pipelines []pipeline) {
 }
 
 func enrichPipelineMetadataItem(repo string, p *pipeline) {
-	if p.Duration == nil {
+	if p.Duration == nil || p.StartedAt == "" {
 		if detail, err := fetchPipeline(repo, p.ID); err == nil {
-			p.Duration = detail.Duration
+			if p.Duration == nil {
+				p.Duration = detail.Duration
+			}
+			p.StartedAt = detail.StartedAt
 			if p.Commit.Title == "" {
 				p.Commit.Title = detail.Commit.Title
 			}

@@ -31,6 +31,7 @@ type pipeline struct {
 	Source      string     `json:"source"`
 	UpdatedAt   string     `json:"updated_at"`
 	CreatedAt   string     `json:"created_at"`
+	StartedAt   string     `json:"started_at"`
 	Duration    *float64   `json:"duration"`
 	WebURL      string     `json:"web_url"`
 	Commit      commitInfo `json:"commit"`
@@ -86,24 +87,25 @@ type inlineLogSnippet struct {
 }
 
 type logPane struct {
-	ID             int
-	Mode           int
-	ListCursor     int
-	DetailID       int
-	Detail         *detail
-	JobsCursor     int
-	Job            *job
-	BackMode       int
-	Logs           string
-	Loading        bool
-	Viewport       viewport.Model
-	SearchMode     bool
-	SearchActive   bool
-	SearchQuery    string
-	SearchMatches  []logSearchMatch
-	SearchIndex    int
-	ShowInlineLogs bool
-	ScrollOffset   int
+	ID               int
+	Mode             int
+	ListCursor       int
+	DetailID         int
+	Detail           *detail
+	JobsCursor       int
+	Job              *job
+	BackMode         int
+	Logs             string
+	Loading          bool
+	Viewport         viewport.Model
+	SearchMode       bool
+	SearchActive     bool
+	SearchQuery      string
+	SearchMatches    []logSearchMatch
+	SearchIndex      int
+	ShowInlineLogs   bool
+	ScrollOffset     int
+	HorizontalOffset int
 }
 
 type logSplitNode struct {
@@ -169,6 +171,7 @@ type model struct {
 	themeBackMode     int
 	borderName        string
 	scrollOffset      int
+	horizontalOffset  int
 }
 
 type pipelinesMsg struct {

@@ -91,24 +91,25 @@ func (m model) currentLogPaneState(id int) logPane {
 		loading = m.logsLoading
 	}
 	return logPane{
-		ID:             id,
-		Mode:           m.mode,
-		ListCursor:     m.listCursor,
-		DetailID:       m.detailID,
-		Detail:         cloneDetailPtr(m.detail),
-		JobsCursor:     m.jobsCursor,
-		Job:            cloneJobPtr(m.logJob),
-		BackMode:       m.logBackMode,
-		Logs:           m.logs,
-		Loading:        loading,
-		Viewport:       m.logsViewport,
-		SearchMode:     m.logSearchMode,
-		SearchActive:   m.logSearchActive,
-		SearchQuery:    m.logSearchQuery,
-		SearchMatches:  append([]logSearchMatch(nil), m.logSearchMatches...),
-		SearchIndex:    m.logSearchIndex,
-		ShowInlineLogs: m.showInlineLogs,
-		ScrollOffset:   m.scrollOffset,
+		ID:               id,
+		Mode:             m.mode,
+		ListCursor:       m.listCursor,
+		DetailID:         m.detailID,
+		Detail:           cloneDetailPtr(m.detail),
+		JobsCursor:       m.jobsCursor,
+		Job:              cloneJobPtr(m.logJob),
+		BackMode:         m.logBackMode,
+		Logs:             m.logs,
+		Loading:          loading,
+		Viewport:         m.logsViewport,
+		SearchMode:       m.logSearchMode,
+		SearchActive:     m.logSearchActive,
+		SearchQuery:      m.logSearchQuery,
+		SearchMatches:    append([]logSearchMatch(nil), m.logSearchMatches...),
+		SearchIndex:      m.logSearchIndex,
+		ShowInlineLogs:   m.showInlineLogs,
+		ScrollOffset:     m.scrollOffset,
+		HorizontalOffset: m.horizontalOffset,
 	}
 }
 
@@ -162,6 +163,7 @@ func (m model) restoreLogPane(p logPane) model {
 	m.logSearchIndex = p.SearchIndex
 	m.showInlineLogs = p.ShowInlineLogs
 	m.scrollOffset = p.ScrollOffset
+	m.horizontalOffset = p.HorizontalOffset
 	return m.configureLogViewport()
 }
 
@@ -485,7 +487,7 @@ func (m model) renderSinglePane(body string) string {
 	contentWidth := max(1, width-2)
 	contentHeight := max(1, height-2)
 	if m.height > 0 {
-		body = renderScrollableBody(body, contentWidth, contentHeight, m.scrollOffset)
+		body = renderScrollableBody(body, contentWidth, contentHeight, m.scrollOffset, m.horizontalOffset)
 	}
 	return m.renderPaneBox(body, true, m.paneModeLoading(m.mode), contentWidth, contentHeight)
 }
@@ -543,8 +545,13 @@ func (m model) renderLogPane(pane logPane, active bool, width, height int) strin
 	if pane.Mode == modeDetail {
 		return m.renderDetailPane(pane, active, contentWidth, contentHeight)
 	}
-	pane.Viewport.Width = contentWidth
-	pane.Viewport.Height = innerHeight
+	logWidth := max(contentWidth, widestLineWidth(pane.Logs))
+	visibleHeight := innerHeight
+	if logWidth > contentWidth {
+		visibleHeight = max(1, visibleHeight-1)
+	}
+	pane.Viewport.Width = logWidth
+	pane.Viewport.Height = visibleHeight
 	title := logPaneTitle(pane)
 	if active {
 		title = selectedStyle.Render(truncate(title, contentWidth))
@@ -552,7 +559,8 @@ func (m model) renderLogPane(pane logPane, active bool, width, height int) strin
 		title = metaStyle.Render(truncate(title, contentWidth))
 	}
 	status := truncate(logPaneStatus(pane), contentWidth)
-	body := title + "\n" + dimStyle.Render(status) + "\n" + renderViewportBody(pane.Viewport.View(), contentWidth, innerHeight, pane.Viewport.YOffset, pane.Viewport.TotalLineCount())
+	body := title + "\n" + dimStyle.Render(status) + "\n" + renderViewportBody(pane.Viewport.View(), logWidth, visibleHeight, pane.Viewport.YOffset, pane.Viewport.TotalLineCount())
+	body = renderScrollableBody(body, contentWidth, contentHeight, 0, pane.HorizontalOffset)
 	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), contentWidth, contentHeight)
 }
 
@@ -652,15 +660,20 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 		}
 	}
 	fmt.Fprintf(&b, "%s %d/%d\n", dimStyle.Render("jobs succeeded:"), succeeded, len(detail.DisplayJobs))
+	now := time.Now()
 	for i := range detail.DisplayJobs {
 		row := detail.DisplayJobs[i]
 		j := row.Current
-		progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, width-6))
+		progress := renderJobProgress(j, m.jobDurations[j.Name].Average, now, max(1, width-6))
+		lastRun := renderJobLastRun(row, now)
 		if i == pane.JobsCursor {
-			details := renderSelectedCombinedStatus(row) + "  " + truncate(j.Stage, 16)
+			details := renderCombinedStatus(row) + "  " + truncate(j.Stage, 16)
 			nameWidth := max(1, min(24, width-lipgloss.Width(details)-6))
-			name := lipgloss.NewStyle().Width(nameWidth + 2).Render(cyanStyle.Bold(true).Render(truncate(j.Name, nameWidth)))
+			name := lipgloss.NewStyle().Width(nameWidth + 2).Render(selectedStyle.Render(truncate(j.Name, nameWidth)))
 			line := lipgloss.JoinHorizontal(lipgloss.Center, name, details)
+			if lastRun != "" {
+				line += "\n" + dimStyle.Render(truncate(lastRun, max(1, width-6)))
+			}
 			if progress != "" {
 				line += "\n" + truncate(progress, max(1, width-6))
 			}
@@ -670,6 +683,9 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 			nameWidth := max(1, min(24, width-lipgloss.Width(details)-6))
 			name := lipgloss.NewStyle().Width(nameWidth + 2).Render(cyanStyle.Bold(true).Render(truncate(j.Name, nameWidth)))
 			line := lipgloss.JoinHorizontal(lipgloss.Center, name, details)
+			if lastRun != "" {
+				line += "\n" + dimStyle.Render(truncate(lastRun, max(1, width-6)))
+			}
 			if progress != "" {
 				line += "\n" + truncate(progress, max(1, width-6))
 			}
@@ -677,7 +693,7 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 		}
 		b.WriteString(m.renderInlineLogLines(j, width, pane.ShowInlineLogs))
 	}
-	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset)
+	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset, pane.HorizontalOffset)
 	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), width, height)
 }
 
@@ -701,7 +717,8 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 		b.WriteString(yellowStyle.Render("no pipelines found") + "\n")
 		return m.renderPaneBox(b.String(), active, m.paneIsLoading(pane, active), width, height)
 	}
-	b.WriteString(dimStyle.Render(truncate(fmt.Sprintf("%-9s %-12s %-18s %-9s %s", "ID", "STATUS", "REF", "SHA", "TITLE"), width)) + "\n")
+	b.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "STARTED", "DURATION", "TITLE")) + "\n")
+	now := time.Now()
 	cursor := pane.ListCursor
 	if active {
 		cursor = m.listCursor
@@ -718,7 +735,7 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 		if len(sha) > 8 {
 			sha = sha[:8]
 		}
-		line := truncate(fmt.Sprintf("%-9s %-12s %-18s %-9s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 18), sha, truncate(p.CommitTitle, max(1, width-53))), width)
+		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), timeAgo(p.StartedAt, now), formatPipelineDuration(p.Duration), truncate(p.CommitTitle, 72))
 		if i == cursor {
 			line = colorStatusInSelectedLine(line, p.Status)
 			b.WriteString(selectedStyle.Render(line) + "\n")
@@ -727,7 +744,7 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 			b.WriteString(line + "\n")
 		}
 	}
-	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset)
+	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset, pane.HorizontalOffset)
 	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), width, height)
 }
 
@@ -769,14 +786,88 @@ func renderTopLeftIndicator(body, indicator string, width int) string {
 	return strings.Join(parts, "\n")
 }
 
-func renderScrollableBody(body string, width, height, offset int) string {
+func renderScrollableBody(body string, width, height, offset int, horizontalOffsets ...int) string {
 	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
-	if len(lines) <= height {
+	horizontalOffset := 0
+	if len(horizontalOffsets) > 0 {
+		horizontalOffset = horizontalOffsets[0]
+	}
+	maxWidth := 0
+	for _, line := range lines {
+		maxWidth = max(maxWidth, ansi.StringWidth(line))
+	}
+	hasHorizontal := maxWidth > width
+	contentHeight := height
+	if hasHorizontal {
+		contentHeight = max(1, height-1)
+	}
+	hasVertical := len(lines) > contentHeight
+	contentWidth := width
+	if hasVertical {
+		contentWidth = max(1, width-1)
+	}
+	maxHorizontalOffset := max(0, maxWidth-contentWidth)
+	horizontalOffset = min(max(0, horizontalOffset), maxHorizontalOffset)
+	maxOffset := max(0, len(lines)-contentHeight)
+	offset = min(max(0, offset), maxOffset)
+	if !hasHorizontal && !hasVertical {
 		return body
 	}
-	maxOffset := len(lines) - height
-	offset = min(max(0, offset), maxOffset)
-	return renderViewportBody(strings.Join(lines[offset:offset+height], "\n"), width, height, offset, len(lines))
+
+	var b strings.Builder
+	end := min(len(lines), offset+contentHeight)
+	for row := 0; row < contentHeight; row++ {
+		line := ""
+		if offset+row < end {
+			line = lines[offset+row]
+			if horizontalOffset > 0 {
+				line = cellSlice(ansi.Strip(line), horizontalOffset, horizontalOffset+contentWidth)
+			} else {
+				line = truncate(line, contentWidth)
+			}
+		}
+		line += strings.Repeat(" ", max(0, contentWidth-ansi.StringWidth(line)))
+		if hasVertical {
+			thumbHeight := max(1, contentHeight*contentHeight/len(lines))
+			thumbStart := 0
+			if maxOffset > 0 {
+				thumbStart = offset * (contentHeight - thumbHeight) / maxOffset
+			}
+			bar := dimStyle.Render("│")
+			if row >= thumbStart && row < thumbStart+thumbHeight {
+				bar = cyanStyle.Render("█")
+			}
+			line += bar
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	if hasHorizontal {
+		barWidth := width
+		thumbWidth := max(1, barWidth*contentWidth/maxWidth)
+		thumbStart := 0
+		if maxHorizontalOffset > 0 {
+			thumbStart = horizontalOffset * (barWidth - thumbWidth) / maxHorizontalOffset
+		}
+		for column := 0; column < barWidth; column++ {
+			if column >= thumbStart && column < thumbStart+thumbWidth {
+				b.WriteString(cyanStyle.Render("█"))
+			} else {
+				b.WriteString(dimStyle.Render("─"))
+			}
+		}
+	} else {
+		return strings.TrimSuffix(b.String(), "\n")
+	}
+	return b.String()
+}
+
+func widestLineWidth(value string) int {
+	width := 0
+	for _, line := range strings.Split(value, "\n") {
+		width = max(width, ansi.StringWidth(line))
+	}
+	return width
 }
 
 func renderViewportBody(body string, width, height, offset, total int) string {

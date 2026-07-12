@@ -95,6 +95,8 @@ Pipeline list:
 - `s`: split horizontally
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
+- `ctrl+n`/`ctrl+p`/`ctrl+f`/`ctrl+b`: scroll down/up/right/left
+- `left`/`right`: scroll overflowing pane content horizontally
 - `x`: close focused split
 - `o`: close all other splits
 - `t`: open theme picker
@@ -110,6 +112,8 @@ Pipeline detail:
 - `s`: split horizontally
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
+- `ctrl+n`/`ctrl+p`/`ctrl+f`/`ctrl+b`: scroll down/up/right/left
+- `left`/`right`: scroll overflowing pane content horizontally
 - `x`: close focused split
 - `o`: close all other splits
 - `t`: open theme picker
@@ -142,6 +146,8 @@ Logs:
 - `s`: split horizontally
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
+- `ctrl+n`/`ctrl+p`/`ctrl+f`/`ctrl+b`: scroll down/up/right/left
+- `left`/`right`: scroll overflowing pane content horizontally
 - `x`: close focused split
 - `o`: close all other splits
 - `/`: search logs incrementally

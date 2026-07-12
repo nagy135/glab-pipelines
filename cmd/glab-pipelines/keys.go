@@ -105,9 +105,21 @@ func (m model) handleThemeKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "ctrl+f":
-		return m.scrollPage(1), nil
+		return m.scrollHorizontal(1), nil
 	case "ctrl+b":
+		return m.scrollHorizontal(-1), nil
+	case "ctrl+n":
+		return m.scrollLine(1), nil
+	case "ctrl+p":
+		return m.scrollLine(-1), nil
+	case "pgdown":
+		return m.scrollPage(1), nil
+	case "pgup":
 		return m.scrollPage(-1), nil
+	case "right":
+		return m.scrollHorizontal(1), nil
+	case "left":
+		return m.scrollHorizontal(-1), nil
 	case "s":
 		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
 	case "v":
@@ -153,6 +165,7 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.message = ""
 		m.mode = modeDetail
 		m.scrollOffset = 0
+		m.horizontalOffset = 0
 		if m.logSplitRoot == nil || m.activeLogPane == 0 {
 			m = m.initLogPanes()
 		} else {
@@ -168,9 +181,21 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "ctrl+f":
-		return m.scrollPage(1), nil
+		return m.scrollHorizontal(1), nil
 	case "ctrl+b":
+		return m.scrollHorizontal(-1), nil
+	case "ctrl+n":
+		return m.scrollLine(1), nil
+	case "ctrl+p":
+		return m.scrollLine(-1), nil
+	case "pgdown":
+		return m.scrollPage(1), nil
+	case "pgup":
 		return m.scrollPage(-1), nil
+	case "right":
+		return m.scrollHorizontal(1), nil
+	case "left":
+		return m.scrollHorizontal(-1), nil
 	case "s":
 		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
 	case "v":
@@ -195,6 +220,7 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.mode = modePipelines
 		m.scrollOffset = 0
+		m.horizontalOffset = 0
 		m.message = ""
 		return m, tea.ClearScreen
 	case "r":
@@ -262,6 +288,7 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.mode = modeJobs
 		m.scrollOffset = 0
+		m.horizontalOffset = 0
 		m.message = ""
 		return m, tea.ClearScreen
 	}
@@ -275,9 +302,21 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch key.String() {
 	case "ctrl+f":
-		return m.scrollPage(1), nil
+		return m.scrollHorizontal(1), nil
 	case "ctrl+b":
+		return m.scrollHorizontal(-1), nil
+	case "ctrl+n":
+		return m.scrollLine(1), nil
+	case "ctrl+p":
+		return m.scrollLine(-1), nil
+	case "pgdown":
+		return m.scrollPage(1), nil
+	case "pgup":
 		return m.scrollPage(-1), nil
+	case "right":
+		return m.scrollHorizontal(1), nil
+	case "left":
+		return m.scrollHorizontal(-1), nil
 	case "q", "esc":
 		m.mode = modeDetail
 		m.scrollOffset = 0
@@ -335,17 +374,36 @@ func (m model) scrollPage(direction int) model {
 	return m.saveActiveLogPane()
 }
 
+func (m model) scrollLine(direction int) model {
+	m.scrollOffset = max(0, m.scrollOffset+direction)
+	return m.saveActiveLogPane()
+}
+
+func (m model) scrollHorizontal(direction int) model {
+	const step = 8
+	m.horizontalOffset = max(0, m.horizontalOffset+direction*step)
+	return m.saveActiveLogPane()
+}
+
 func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.logSearchMode {
 		return m.handleLogSearchKey(key)
 	}
 	switch key.String() {
 	case "ctrl+f":
-		m.logsViewport.ViewDown()
-		return m.saveActiveLogPane(), nil
+		return m.scrollHorizontal(1), nil
 	case "ctrl+b":
-		m.logsViewport.ViewUp()
+		return m.scrollHorizontal(-1), nil
+	case "ctrl+n":
+		m.logsViewport.LineDown(1)
 		return m.saveActiveLogPane(), nil
+	case "ctrl+p":
+		m.logsViewport.LineUp(1)
+		return m.saveActiveLogPane(), nil
+	case "right":
+		return m.scrollHorizontal(1), nil
+	case "left":
+		return m.scrollHorizontal(-1), nil
 	case "s":
 		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
 	case "v":

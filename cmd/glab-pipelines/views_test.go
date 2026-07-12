@@ -71,6 +71,25 @@ func TestDetailViewShowsTypicalDurationProgress(t *testing.T) {
 	}
 }
 
+func TestPipelineListShowsWhenPipelineStarted(t *testing.T) {
+	started := time.Now().Add(-12 * time.Minute)
+	m := model{
+		width:  140,
+		height: 20,
+		list: []pipeline{{
+			ID:        10,
+			Status:    "running",
+			Ref:       "main",
+			StartedAt: started.Format(time.RFC3339Nano),
+		}},
+	}
+
+	view := ansi.Strip(m.viewPipelines())
+	if !strings.Contains(view, "STARTED") || !strings.Contains(view, "12m ago") {
+		t.Fatalf("pipeline list does not show relative start time: %q", view)
+	}
+}
+
 func TestConfirmViewFitsNarrowTerminal(t *testing.T) {
 	m := model{
 		mode:            modeConfirm,
@@ -128,5 +147,14 @@ func TestScrollableBodyAddsScrollbarAndUsesOffset(t *testing.T) {
 	}
 	if strings.Contains(view, "one") || !strings.Contains(view, "█") {
 		t.Fatalf("scrolled view is missing clipping or scrollbar: %q", view)
+	}
+}
+
+func TestScrollableBodySupportsHorizontalOverflow(t *testing.T) {
+	body := "ID  STATUS  REF  STARTED  DURATION  TITLE"
+	view := ansi.Strip(renderScrollableBody(body, 16, 3, 0, 12))
+
+	if !strings.Contains(view, "REF") || strings.Contains(view, "ID  STATUS") || !strings.Contains(view, "█") {
+		t.Fatalf("horizontal viewport has the wrong content or scrollbar: %q", view)
 	}
 }

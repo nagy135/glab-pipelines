@@ -151,11 +151,32 @@ func logTarget(row uiJob) job {
 	return row.Current
 }
 
-func displayDuration(row uiJob) *float64 {
-	if row.Current.Status == "manual" && row.Previous != nil {
-		return row.Previous.Duration
+func renderJobLastRun(row uiJob, now time.Time) string {
+	last := row.Current
+	if row.Previous != nil && last.FinishedAt == "" {
+		last = *row.Previous
 	}
-	return row.Current.Duration
+	parts := make([]string, 0, 2)
+	if last.Duration != nil {
+		parts = append(parts, "last duration "+formatPipelineDuration(last.Duration))
+	}
+	if ran := detailedTimeAgo(last.FinishedAt, now); ran != "" {
+		parts = append(parts, "ran "+ran)
+	}
+	return strings.Join(parts, "   ")
+}
+
+func detailedTimeAgo(value string, now time.Time) string {
+	finished, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return ""
+	}
+	elapsed := now.Sub(finished)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	seconds := elapsed.Seconds()
+	return formatPipelineDuration(&seconds) + " ago"
 }
 
 func renderJobProgress(j job, typical float64, now time.Time, width int) string {
@@ -209,14 +230,6 @@ func renderCombinedStatus(row uiJob) string {
 		return statusStyle(prev).Render(prev) + dimStyle.Render(" + ") + statusStyle("manual").Render("manual")
 	}
 	return statusStyle(row.Current.Status).Render(row.Current.Status)
-}
-
-func renderSelectedCombinedStatus(row uiJob) string {
-	if row.Current.Status == "manual" && row.Previous != nil {
-		prev := previousStatus(*row.Previous)
-		return selectedStatusStyle(prev).Render(prev) + dimStyle.Render(" + ") + selectedStatusStyle("manual").Render("manual")
-	}
-	return selectedStatusStyle(row.Current.Status).Render(row.Current.Status)
 }
 
 func colorCombinedStatusInLine(line string, row uiJob) string {

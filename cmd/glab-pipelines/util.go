@@ -12,13 +12,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func (p pipeline) UpdatedOrCreated() string {
-	if p.UpdatedAt != "" {
-		return p.UpdatedAt
-	}
-	return p.CreatedAt
-}
-
 func shortTime(value string) string {
 	if value == "" {
 		return "--"
@@ -31,6 +24,33 @@ func shortTime(value string) string {
 		value = value[:i]
 	}
 	return strings.Replace(value, "T", " ", 1)
+}
+
+func timeAgo(value string, now time.Time) string {
+	if value == "" {
+		return "--"
+	}
+	started, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return "--"
+	}
+	elapsed := now.Sub(started)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	seconds := int(elapsed / time.Second)
+	if seconds < 60 {
+		return fmt.Sprintf("%ds ago", seconds)
+	}
+	minutes := seconds / 60
+	if minutes < 60 {
+		return fmt.Sprintf("%dm ago", minutes)
+	}
+	hours := minutes / 60
+	if hours < 24 {
+		return fmt.Sprintf("%dh %dm ago", hours, minutes%60)
+	}
+	return fmt.Sprintf("%dd %dh ago", hours/24, hours%24)
 }
 
 func shortSHA(sha string) string {

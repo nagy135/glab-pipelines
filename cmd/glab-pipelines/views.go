@@ -106,7 +106,7 @@ func (m model) viewPipelines() string {
 	if m.repo != "" {
 		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+f/b", "page"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -125,13 +125,14 @@ func (m model) viewPipelines() string {
 		b.WriteString(m.renderSinglePane(body.String()))
 		return b.String()
 	}
-	body.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-19s %-11s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "UPDATED", "DURATION", "TITLE")) + "\n")
+	body.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "STARTED", "DURATION", "TITLE")) + "\n")
+	now := time.Now()
 	for i, p := range m.list {
 		sha := p.SHA
 		if len(sha) > 8 {
 			sha = sha[:8]
 		}
-		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-19s %-11s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), shortTime(p.UpdatedOrCreated()), formatPipelineDuration(p.Duration), truncate(p.CommitTitle, 72))
+		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), timeAgo(p.StartedAt, now), formatPipelineDuration(p.Duration), truncate(p.CommitTitle, 72))
 		if i == m.listCursor {
 			line = colorStatusInSelectedLine(line, p.Status)
 			body.WriteString(selectedStyle.Render(line) + "\n")
@@ -153,7 +154,7 @@ func (m model) viewDetail() string {
 		inlineHint = "hide inline"
 	}
 	b.WriteString(m.headerLine(title) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+f/b", "page"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -183,6 +184,7 @@ func (m model) viewDetail() string {
 	}
 	fmt.Fprintf(&body, "%s %d/%d\n\n", dimStyle.Render("jobs succeeded:"), succeeded, len(m.detail.DisplayJobs))
 	stages := orderedDisplayStages(m.detail.DisplayJobs)
+	now := time.Now()
 	for _, stage := range stages {
 		body.WriteString(blueStyle.Bold(true).Render(stage) + "\n")
 		for i, row := range m.detail.DisplayJobs {
@@ -194,17 +196,24 @@ func (m model) viewDetail() string {
 			if j.Status == "failed" && j.AllowFailure {
 				allow = dimStyle.Render(" (allowed to fail)")
 			}
-			progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, m.width-10))
+			progress := renderJobProgress(j, m.jobDurations[j.Name].Average, now, max(1, m.width-10))
+			lastRun := renderJobLastRun(row, now)
 			if i == m.jobsCursor {
 				name := lipgloss.NewStyle().Width(34).Render(selectedStyle.Render(truncate(j.Name, 32)))
-				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderCombinedStatus(row), "  ", dimStyle.Render(formatDuration(displayDuration(row))), allow)
+				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderCombinedStatus(row), allow)
+				if lastRun != "" {
+					line += "\n" + dimStyle.Render(truncate(lastRun, max(1, m.width-10)))
+				}
 				if progress != "" {
 					line += "\n" + truncate(progress, max(1, m.width-10))
 				}
 				body.WriteString(jobRowCard(line, max(8, m.width-4), true) + "\n")
 			} else {
 				name := lipgloss.NewStyle().Width(34).Render(cyanStyle.Bold(true).Render(truncate(j.Name, 32)))
-				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderCombinedStatus(row), "  ", dimStyle.Render(formatDuration(displayDuration(row))), allow)
+				line := lipgloss.JoinHorizontal(lipgloss.Center, name, renderCombinedStatus(row), allow)
+				if lastRun != "" {
+					line += "\n" + dimStyle.Render(truncate(lastRun, max(1, m.width-10)))
+				}
 				if progress != "" {
 					line += "\n" + truncate(progress, max(1, m.width-10))
 				}
@@ -247,7 +256,7 @@ func (m model) renderInlineLogLines(j job, width int, show bool) string {
 func (m model) viewJobs() string {
 	var b strings.Builder
 	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs")) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+f/b", "page"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
 	var body strings.Builder
 	if m.message != "" {
 		body.WriteString(yellowStyle.Render(m.message) + "\n")
@@ -300,7 +309,7 @@ func (m model) viewLogs() string {
 	if m.logSearchActive {
 		nHint = keyHint("n/N", "match")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("ctrl+f/b", "page"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), nHint, keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), nHint, keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -316,7 +325,10 @@ func (m model) viewLogs() string {
 		body.WriteString(status + "\n")
 	}
 	body.WriteString("\n")
-	body.WriteString(renderViewportBody(m.logsViewport.View(), m.logsViewport.Width, m.logsViewport.Height, m.logsViewport.YOffset, m.logsViewport.TotalLineCount()))
+	logViewport := m.logsViewport
+	logWidth := max(logViewport.Width, widestLineWidth(m.logs))
+	logViewport.Width = logWidth
+	body.WriteString(renderViewportBody(logViewport.View(), logWidth, logViewport.Height, logViewport.YOffset, logViewport.TotalLineCount()))
 	b.WriteString(m.renderSinglePane(body.String()))
 	return b.String()
 }

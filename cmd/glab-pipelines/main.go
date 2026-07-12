@@ -94,10 +94,10 @@ Environment:
 	GLAB_TUI_THEME=gruvbox-material color theme override; preferences save to ~/.local/share/glab-pipelines
 
 Keys:
-  Pipeline list: j/k or up/down move, enter details, s/v split, ctrl+hjkl focus, x close split, o only focused split, t theme, b border, r refresh, q close/quit, Q quit app
-  Detail: j/k or up/down move jobs, s/v split, ctrl+hjkl focus, x close split, o only focused split, t theme, b border, l logs in focused split, L inline logs in focused split, S start/retry, c cancel, r refresh, q close, esc back
+  Pipeline list: j/k or up/down move, ctrl+n/p/f/b scroll down/up/right/left, s/v split, ctrl+hjkl focus, x close split, o only focused split, t theme, b border, r refresh, q close/quit, Q quit app
+  Detail: j/k or up/down move jobs, ctrl+n/p/f/b scroll down/up/right/left, s/v split, ctrl+hjkl focus, x close split, o only focused split, t theme, b border, l logs in focused split, L inline logs in focused split, S start/retry, c cancel, r refresh, q close, esc back
   Jobs: j/k or up/down move, s start/retry, c cancel, l logs, t theme, b border, r refresh, q back
-  Logs: j/k or arrows scroll, pgup/pgdn page, g top, G bottom, s/v split, ctrl+hjkl focus, x close split, o only focused split, / search, t theme, b border, n next job or next match, N previous match, r reload, q close, esc back`)
+  Logs: j/k or ctrl+n/p scroll vertically, left/right or ctrl+f/b scroll horizontally, pgup/pgdn page, g top, G bottom, s/v split, ctrl+hjkl focus, x close split, o only focused split, / search, t theme, b border, n next job or next match, N previous match, r reload, q close, esc back`)
 }
 
 func envInt(name string, fallback int) int {
