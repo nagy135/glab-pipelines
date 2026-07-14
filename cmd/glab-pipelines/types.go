@@ -14,6 +14,7 @@ const (
 	modeConfirm
 	modeLogs
 	modeTheme
+	modeCode
 )
 
 const (
@@ -104,6 +105,8 @@ type logPane struct {
 	SearchMatches    []logSearchMatch
 	SearchIndex      int
 	ShowInlineLogs   bool
+	WrapContent      bool
+	ShowLineNumbers  bool
 	ScrollOffset     int
 	HorizontalOffset int
 }
@@ -134,6 +137,7 @@ type model struct {
 	logRequests       map[int64]int
 	logPolls          map[int64]int
 	logFailures       map[int64]int
+	codeRequests      map[int64]int
 	list              []pipeline
 	listCursor        int
 	detailID          int
@@ -156,6 +160,8 @@ type model struct {
 	logSearchMatches  []logSearchMatch
 	logSearchIndex    int
 	showInlineLogs    bool
+	wrapContent       bool
+	showLineNumbers   bool
 	inlineLogs        map[int64]inlineLogSnippet
 	inlineLogRequests map[int64]int
 	inlineLogsLoading map[int64]bool
@@ -202,6 +208,13 @@ type logsMsg struct {
 	job       *job
 	err       error
 	statusErr error
+}
+
+type codeMsg struct {
+	jobID     int64
+	requestID int
+	code      string
+	err       error
 }
 
 type tickMsg struct {

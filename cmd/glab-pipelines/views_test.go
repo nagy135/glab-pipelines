@@ -140,7 +140,7 @@ func TestDetailViewShowsPipelineTitleAndBranch(t *testing.T) {
 
 func TestScrollableBodyAddsScrollbarAndUsesOffset(t *testing.T) {
 	body := strings.Join([]string{"one", "two", "three", "four", "five"}, "\n")
-	view := ansi.Strip(renderScrollableBody(body, 8, 3, 2))
+	view := ansi.Strip(renderScrollableBody(body, 8, 3, 2, 0, false))
 
 	if !strings.Contains(view, "three") || !strings.Contains(view, "five") {
 		t.Fatalf("scrolled view has the wrong lines: %q", view)
@@ -152,9 +152,23 @@ func TestScrollableBodyAddsScrollbarAndUsesOffset(t *testing.T) {
 
 func TestScrollableBodySupportsHorizontalOverflow(t *testing.T) {
 	body := "ID  STATUS  REF  STARTED  DURATION  TITLE"
-	view := ansi.Strip(renderScrollableBody(body, 16, 3, 0, 12))
+	view := ansi.Strip(renderScrollableBody(body, 16, 3, 0, 12, false))
 
 	if !strings.Contains(view, "REF") || strings.Contains(view, "ID  STATUS") || !strings.Contains(view, "█") {
 		t.Fatalf("horizontal viewport has the wrong content or scrollbar: %q", view)
+	}
+}
+
+func TestScrollableBodyWrapsInsteadOfAddingHorizontalOverflow(t *testing.T) {
+	body := "0123456789abcdefghijklmnop"
+	view := ansi.Strip(renderScrollableBody(body, 10, 6, 0, 8, true))
+
+	if strings.Contains(view, "─") || !strings.Contains(view, "0123456789\n") {
+		t.Fatalf("wrapped viewport still has horizontal overflow: %q", view)
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if ansi.StringWidth(line) > 10 {
+			t.Fatalf("wrapped line width = %d, want <= 10: %q", ansi.StringWidth(line), line)
+		}
 	}
 }

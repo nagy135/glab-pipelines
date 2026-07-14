@@ -39,6 +39,13 @@ func fetchLogsCmd(repo string, j job, requestID, pollID int) tea.Cmd {
 	}
 }
 
+func fetchJobCodeCmd(repo string, j job, requestID int) tea.Cmd {
+	return func() tea.Msg {
+		code, err := fetchJobCode(repo, j)
+		return codeMsg{jobID: j.ID, requestID: requestID, code: sanitizeTerminalText(code), err: err}
+	}
+}
+
 func tickDetailCmd(pid, pollID int, refresh time.Duration) tea.Cmd {
 	return tea.Tick(refresh, func(time.Time) tea.Msg { return tickMsg{pid: pid, pollID: pollID} })
 }
@@ -108,6 +115,15 @@ func (m model) requestLogs(j job, restartPolling bool) (model, tea.Cmd) {
 	m.nextRequestID++
 	m.logRequests[j.ID] = m.nextRequestID
 	return m, fetchLogsCmd(m.repo, j, m.nextRequestID, m.logPolls[j.ID])
+}
+
+func (m model) requestJobCode(j job) (model, tea.Cmd) {
+	if m.codeRequests == nil {
+		m.codeRequests = make(map[int64]int)
+	}
+	m.nextRequestID++
+	m.codeRequests[j.ID] = m.nextRequestID
+	return m, fetchJobCodeCmd(m.repo, j, m.nextRequestID)
 }
 
 func (m model) requestInlineLogs(rows []uiJob) (model, tea.Cmd) {

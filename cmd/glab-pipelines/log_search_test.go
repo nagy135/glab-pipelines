@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/bubbles/viewport"
 )
 
 func TestFindLogSearchMatchesCaseInsensitive(t *testing.T) {
@@ -46,5 +48,24 @@ func TestFindLogSearchMatchesPreservesUnicodeByteOffsets(t *testing.T) {
 	rendered := renderLogContentFor(logs, matches, 0)
 	if !strings.Contains(rendered, "É") || !utf8.ValidString(rendered) {
 		t.Fatalf("rendered match is invalid: %q", rendered)
+	}
+}
+
+func TestWrappedSearchMatchUsesVisualLineOffset(t *testing.T) {
+	v := viewport.New(6, 1)
+	m := model{
+		mode:             modeLogs,
+		logs:             "1234567890\ntarget",
+		logsViewport:     v,
+		wrapContent:      true,
+		logSearchQuery:   "target",
+		logSearchMatches: findLogSearchMatches("1234567890\ntarget", "target"),
+		logSearchIndex:   -1,
+	}
+	m.logsViewport.SetContent(m.renderLogContent())
+	m = m.jumpLogSearchMatch(1)
+
+	if m.logsViewport.YOffset != 2 {
+		t.Fatalf("wrapped search offset = %d, want visual line 2", m.logsViewport.YOffset)
 	}
 }

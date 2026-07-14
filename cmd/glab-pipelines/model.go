@@ -33,6 +33,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m = m.configureLogViewport()
+		if (m.mode == modeLogs || m.mode == modeCode) && m.logs != "" {
+			m.logsViewport.SetContent(m.renderLogContent())
+			m = m.saveActiveLogPane()
+		}
 		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -200,7 +204,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						pane.SearchIndex = len(pane.SearchMatches) - 1
 					}
 				}
-				pane.Viewport.SetContent(renderLogContentFor(pane.Logs, pane.SearchMatches, pane.SearchIndex))
+				pane.Viewport.SetContent(renderViewerContent(pane.Logs, pane.Mode, pane.SearchMatches, pane.SearchIndex, pane.ShowLineNumbers, pane.WrapContent, pane.Viewport.Width, pane.Viewport.Height))
 				if pane.SearchQuery != "" {
 					pane.Viewport.SetYOffset(yOffset)
 				} else if wasBottom {
@@ -263,6 +267,65 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m = m.saveActiveLogPane()
 		return m, tea.Batch(soundCmd, m.nextLogPoll(msg.jobID, msg.pollID, false))
+	case codeMsg:
+		if msg.requestID != m.codeRequests[msg.jobID] {
+			return m, nil
+		}
+		updated := false
+		activeUpdated := false
+		for i := range m.logPanes {
+			pane := &m.logPanes[i]
+			if pane.Mode != modeCode || pane.Job == nil || pane.Job.ID != msg.jobID {
+				continue
+			}
+			updated = true
+			activeUpdated = activeUpdated || pane.ID == m.activeLogPane
+			pane.Loading = false
+			if msg.err != nil {
+				if pane.ID == m.activeLogPane {
+					m.message = msg.err.Error()
+				}
+				if pane.Logs == "" {
+					pane.Viewport.SetContent(redStyle.Render(msg.err.Error()))
+				}
+				continue
+			}
+			pane.Logs = msg.code
+			pane.SearchMatches = findLogSearchMatches(pane.Logs, pane.SearchQuery)
+			if len(pane.SearchMatches) == 0 {
+				pane.SearchIndex = -1
+			}
+			if pane.SearchIndex >= len(pane.SearchMatches) {
+				pane.SearchIndex = len(pane.SearchMatches) - 1
+			}
+			pane.Viewport.SetContent(renderViewerContent(pane.Logs, pane.Mode, pane.SearchMatches, pane.SearchIndex, pane.ShowLineNumbers, pane.WrapContent, pane.Viewport.Width, pane.Viewport.Height))
+			pane.Viewport.GotoTop()
+		}
+		if updated {
+			if activeUpdated && m.mode == modeCode {
+				if idx := m.logPaneIndex(m.activeLogPane); idx >= 0 {
+					m = m.restoreLogPane(m.logPanes[idx])
+				}
+			}
+			return m, nil
+		}
+		if m.mode != modeCode || m.logJob == nil || m.logJob.ID != msg.jobID {
+			return m, nil
+		}
+		m.logsLoading = false
+		if msg.err != nil {
+			m.message = msg.err.Error()
+			if m.logs == "" {
+				m.logsViewport.SetContent(redStyle.Render(msg.err.Error()))
+			}
+			return m, nil
+		}
+		m.message = ""
+		m.logs = msg.code
+		m = m.refreshLogSearchMatches().configureLogViewport()
+		m.logsViewport.SetContent(m.renderLogContent())
+		m.logsViewport.GotoTop()
+		return m.saveActiveLogPane(), nil
 	case inlineLogMsg:
 		if msg.pollID != m.inlineLogPollID || msg.requestID != m.inlineLogRequests[msg.jobID] {
 			return m, nil
@@ -508,7 +571,7 @@ func (m model) configureLogViewport() model {
 	if m.logsLoading {
 		height--
 	}
-	if m.logSearchMode || m.logSearchQuery != "" {
+	if (m.mode == modeLogs || m.mode == modeCode) && (m.logSearchMode || m.logSearchQuery != "") {
 		height--
 	}
 	if height < 1 {

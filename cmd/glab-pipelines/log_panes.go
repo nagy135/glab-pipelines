@@ -87,7 +87,7 @@ func (m model) currentLogPaneState(id int) logPane {
 		loading = m.loadingList
 	case modeDetail:
 		loading = m.detailLoading
-	case modeLogs:
+	case modeLogs, modeCode:
 		loading = m.logsLoading
 	}
 	return logPane{
@@ -108,6 +108,8 @@ func (m model) currentLogPaneState(id int) logPane {
 		SearchMatches:    append([]logSearchMatch(nil), m.logSearchMatches...),
 		SearchIndex:      m.logSearchIndex,
 		ShowInlineLogs:   m.showInlineLogs,
+		WrapContent:      m.wrapContent,
+		ShowLineNumbers:  m.showLineNumbers,
 		ScrollOffset:     m.scrollOffset,
 		HorizontalOffset: m.horizontalOffset,
 	}
@@ -154,7 +156,7 @@ func (m model) restoreLogPane(p logPane) model {
 	m.logJob = cloneJobPtr(p.Job)
 	m.logBackMode = p.BackMode
 	m.logs = p.Logs
-	m.logsLoading = p.Mode == modeLogs && p.Loading
+	m.logsLoading = (p.Mode == modeLogs || p.Mode == modeCode) && p.Loading
 	m.logsViewport = p.Viewport
 	m.logSearchMode = p.SearchMode
 	m.logSearchActive = p.SearchActive
@@ -162,9 +164,15 @@ func (m model) restoreLogPane(p logPane) model {
 	m.logSearchMatches = append([]logSearchMatch(nil), p.SearchMatches...)
 	m.logSearchIndex = p.SearchIndex
 	m.showInlineLogs = p.ShowInlineLogs
+	m.wrapContent = p.WrapContent
+	m.showLineNumbers = p.ShowLineNumbers
 	m.scrollOffset = p.ScrollOffset
 	m.horizontalOffset = p.HorizontalOffset
-	return m.configureLogViewport()
+	m = m.configureLogViewport()
+	if (m.mode == modeLogs || m.mode == modeCode) && m.logs != "" {
+		m.logsViewport.SetContent(m.renderLogContent())
+	}
+	return m
 }
 
 func (m model) logPaneIndex(id int) int {
@@ -203,7 +211,7 @@ func (m model) paneModeLoading(mode int) bool {
 		return m.detailLoading
 	case modeJobs:
 		return m.detailLoading
-	case modeLogs:
+	case modeLogs, modeCode:
 		return m.logsLoading
 	}
 	return false
@@ -223,6 +231,24 @@ func (m model) setActivePaneLogs(job job, backMode int) model {
 	m.logsViewport.SetContent("loading logs...")
 	idx := m.logPaneIndex(m.activeLogPane)
 	if idx >= 0 {
+		m.logPanes[idx] = m.currentLogPaneState(m.activeLogPane)
+	}
+	return m
+}
+
+func (m model) setActivePaneCode(job job, backMode int) model {
+	m.logJob = &job
+	m.logBackMode = backMode
+	m.logs = ""
+	m.logsLoading = true
+	m = m.clearLogSearch()
+	m.message = ""
+	m.mode = modeCode
+	m.logsViewport.Width = max(1, m.width)
+	m.logsViewport.Height = max(1, m.height-4)
+	m = m.configureLogViewport()
+	m.logsViewport.SetContent("loading job code...")
+	if idx := m.logPaneIndex(m.activeLogPane); idx >= 0 {
 		m.logPanes[idx] = m.currentLogPaneState(m.activeLogPane)
 	}
 	return m
@@ -487,7 +513,8 @@ func (m model) renderSinglePane(body string) string {
 	contentWidth := max(1, width-2)
 	contentHeight := max(1, height-2)
 	if m.height > 0 {
-		body = renderScrollableBody(body, contentWidth, contentHeight, m.scrollOffset, m.horizontalOffset)
+		wrap := m.wrapContent && m.mode != modeLogs && m.mode != modeCode
+		body = renderScrollableBody(body, contentWidth, contentHeight, m.scrollOffset, m.horizontalOffset, wrap)
 	}
 	return m.renderPaneBox(body, true, m.paneModeLoading(m.mode), contentWidth, contentHeight)
 }
@@ -545,13 +572,18 @@ func (m model) renderLogPane(pane logPane, active bool, width, height int) strin
 	if pane.Mode == modeDetail {
 		return m.renderDetailPane(pane, active, contentWidth, contentHeight)
 	}
-	logWidth := max(contentWidth, widestLineWidth(pane.Logs))
+	rendered := renderViewerContent(pane.Logs, pane.Mode, pane.SearchMatches, pane.SearchIndex, pane.ShowLineNumbers, pane.WrapContent, contentWidth, innerHeight)
+	logWidth := contentWidth
+	if !pane.WrapContent {
+		logWidth = max(contentWidth, widestLineWidth(rendered))
+	}
 	visibleHeight := innerHeight
 	if logWidth > contentWidth {
 		visibleHeight = max(1, visibleHeight-1)
 	}
 	pane.Viewport.Width = logWidth
 	pane.Viewport.Height = visibleHeight
+	pane.Viewport.SetContent(renderViewerContent(pane.Logs, pane.Mode, pane.SearchMatches, pane.SearchIndex, pane.ShowLineNumbers, pane.WrapContent, contentWidth, visibleHeight))
 	title := logPaneTitle(pane)
 	if active {
 		title = selectedStyle.Render(truncate(title, contentWidth))
@@ -560,7 +592,7 @@ func (m model) renderLogPane(pane logPane, active bool, width, height int) strin
 	}
 	status := truncate(logPaneStatus(pane), contentWidth)
 	body := title + "\n" + dimStyle.Render(status) + "\n" + renderViewportBody(pane.Viewport.View(), logWidth, visibleHeight, pane.Viewport.YOffset, pane.Viewport.TotalLineCount())
-	body = renderScrollableBody(body, contentWidth, contentHeight, 0, pane.HorizontalOffset)
+	body = renderScrollableBody(body, contentWidth, contentHeight, 0, pane.HorizontalOffset, false)
 	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), contentWidth, contentHeight)
 }
 
@@ -588,7 +620,11 @@ func logPaneTitle(pane logPane) string {
 	if pane.Job != nil {
 		name = pane.Job.Name
 	}
-	return fmt.Sprintf(" pane %d  %s", pane.ID, name)
+	view := "logs"
+	if pane.Mode == modeCode {
+		view = "code"
+	}
+	return fmt.Sprintf(" pane %d  %s %s", pane.ID, name, view)
 }
 
 func logPaneStatus(pane logPane) string {
@@ -602,7 +638,7 @@ func logPaneStatus(pane logPane) string {
 		if pane.Loading {
 			return "loading pipeline..."
 		}
-		return "select a job, then l opens logs in this pane"
+		return "select a job, then l opens logs or C opens code in this pane"
 	}
 	parts := make([]string, 0, 3)
 	if pane.Job != nil && pane.Job.Status != "" {
@@ -619,6 +655,12 @@ func logPaneStatus(pane logPane) string {
 		} else {
 			parts = append(parts, fmt.Sprintf("/%s %d/%d", pane.SearchQuery, max(1, pane.SearchIndex+1), len(pane.SearchMatches)))
 		}
+	}
+	if pane.WrapContent {
+		parts = append(parts, "wrap")
+	}
+	if pane.ShowLineNumbers && (pane.Mode == modeLogs || pane.Mode == modeCode) {
+		parts = append(parts, "lines")
 	}
 	if len(parts) == 0 {
 		return " "
@@ -693,7 +735,7 @@ func (m model) renderDetailPane(pane logPane, active bool, width, height int) st
 		}
 		b.WriteString(m.renderInlineLogLines(j, width, pane.ShowInlineLogs))
 	}
-	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset, pane.HorizontalOffset)
+	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset, pane.HorizontalOffset, pane.WrapContent)
 	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), width, height)
 }
 
@@ -744,7 +786,7 @@ func (m model) renderPipelinePane(pane logPane, active bool, width, height int) 
 			b.WriteString(line + "\n")
 		}
 	}
-	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset, pane.HorizontalOffset)
+	body := renderScrollableBody(b.String(), width, height, pane.ScrollOffset, pane.HorizontalOffset, pane.WrapContent)
 	return m.renderPaneBox(body, active, m.paneIsLoading(pane, active), width, height)
 }
 
@@ -786,12 +828,12 @@ func renderTopLeftIndicator(body, indicator string, width int) string {
 	return strings.Join(parts, "\n")
 }
 
-func renderScrollableBody(body string, width, height, offset int, horizontalOffsets ...int) string {
-	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
-	horizontalOffset := 0
-	if len(horizontalOffsets) > 0 {
-		horizontalOffset = horizontalOffsets[0]
+func renderScrollableBody(body string, width, height, offset, horizontalOffset int, wrap bool) string {
+	if wrap {
+		body = wrapContent(body, width, height)
+		horizontalOffset = 0
 	}
+	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
 	maxWidth := 0
 	for _, line := range lines {
 		maxWidth = max(maxWidth, ansi.StringWidth(line))

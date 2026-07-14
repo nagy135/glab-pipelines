@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func (m model) beginLogSearch() model {
@@ -27,7 +28,7 @@ func (m model) clearLogSearch() model {
 	m.logSearchIndex = -1
 	m.message = ""
 	if m.logs != "" {
-		m.logsViewport.SetContent(m.logs)
+		m.logsViewport.SetContent(m.renderLogContent())
 	}
 	return m.configureLogViewport()
 }
@@ -62,7 +63,7 @@ func (m model) jumpToCurrentLogSearch() model {
 	}
 	m.logSearchIndex = logSearchMatchNear(m.logSearchMatches, m.logsViewport.YOffset, 1)
 	m.logsViewport.SetContent(m.renderLogContent())
-	m.logsViewport.SetYOffset(m.logSearchMatches[m.logSearchIndex].Line)
+	m.logsViewport.SetYOffset(m.logSearchMatchOffset(m.logSearchMatches[m.logSearchIndex].Line))
 	return m
 }
 
@@ -82,7 +83,7 @@ func (m model) jumpLogSearchMatch(direction int) model {
 		m.logSearchIndex = (m.logSearchIndex + direction + len(m.logSearchMatches)) % len(m.logSearchMatches)
 	}
 	m.logsViewport.SetContent(m.renderLogContent())
-	m.logsViewport.SetYOffset(m.logSearchMatches[m.logSearchIndex].Line)
+	m.logsViewport.SetYOffset(m.logSearchMatchOffset(m.logSearchMatches[m.logSearchIndex].Line))
 	m.message = ""
 	return m
 }
@@ -180,7 +181,63 @@ func (m model) logSearchStatus() string {
 }
 
 func (m model) renderLogContent() string {
-	return renderLogContentFor(m.logs, m.logSearchMatches, m.logSearchIndex)
+	return renderViewerContent(m.logs, m.mode, m.logSearchMatches, m.logSearchIndex, m.showLineNumbers, m.wrapContent, m.logsViewport.Width, m.logsViewport.Height)
+}
+
+func renderViewerContent(content string, mode int, matches []logSearchMatch, index int, lineNumbers, wrap bool, width, height int) string {
+	if mode == modeCode {
+		content = renderBashContentFor(content, matches, index)
+	} else {
+		content = renderLogContentFor(content, matches, index)
+	}
+	if lineNumbers {
+		content = addLineNumbers(content)
+	}
+	if wrap {
+		content = wrapContent(content, width, height)
+	}
+	return content
+}
+
+func addLineNumbers(content string) string {
+	lines := strings.Split(content, "\n")
+	digits := len(fmt.Sprint(len(lines)))
+	for i, line := range lines {
+		prefix := dimStyle.Render(fmt.Sprintf("%*d | ", digits, i+1))
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
+}
+
+func wrapContent(content string, width, height int) string {
+	if width <= 0 {
+		return content
+	}
+	wrapped := ansi.Hardwrap(content, width, true)
+	if height > 0 && strings.Count(wrapped, "\n")+1 > height && width > 1 {
+		wrapped = ansi.Hardwrap(content, width-1, true)
+	}
+	return wrapped
+}
+
+func (m model) logSearchMatchOffset(line int) int {
+	if !m.wrapContent || line <= 0 {
+		return max(0, line)
+	}
+	unwrapped := renderViewerContent(m.logs, m.mode, m.logSearchMatches, m.logSearchIndex, m.showLineNumbers, false, 0, 0)
+	limit := m.logsViewport.Width
+	if limit <= 0 {
+		return line
+	}
+	if wrapped := ansi.Hardwrap(unwrapped, limit, true); m.logsViewport.Height > 0 && strings.Count(wrapped, "\n")+1 > m.logsViewport.Height && limit > 1 {
+		limit--
+	}
+	lines := strings.Split(unwrapped, "\n")
+	offset := 0
+	for i := 0; i < min(line, len(lines)); i++ {
+		offset += strings.Count(ansi.Hardwrap(lines[i], limit, true), "\n") + 1
+	}
+	return offset
 }
 
 func renderLogContentFor(logs string, matches []logSearchMatch, index int) string {

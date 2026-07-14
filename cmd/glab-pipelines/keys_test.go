@@ -1,10 +1,12 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestPageKeysScrollPane(t *testing.T) {
@@ -131,5 +133,56 @@ func TestDetailArrowKeysMoveJobsWithoutScrolling(t *testing.T) {
 	m = updated.(model)
 	if m.jobsCursor != 1 || m.scrollOffset != 0 {
 		t.Fatalf("down resulted in jobs cursor %d and scroll offset %d", m.jobsCursor, m.scrollOffset)
+	}
+}
+
+func TestWrapKeyTogglesFocusedPaneAndDisablesHorizontalScroll(t *testing.T) {
+	v := viewport.New(12, 5)
+	v.SetContent("a very long log line")
+	m := model{
+		mode:             modeLogs,
+		width:            14,
+		height:           10,
+		logs:             "a very long log line",
+		logsViewport:     v,
+		activeLogPane:    1,
+		horizontalOffset: 16,
+		logPanes:         []logPane{{ID: 1, Mode: modeLogs, Viewport: v}},
+	}
+
+	updated, _ := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	m = updated.(model)
+	if !m.wrapContent || m.horizontalOffset != 0 || !m.logPanes[0].WrapContent {
+		t.Fatalf("wrap state was not saved: wrap=%v offset=%d pane=%+v", m.wrapContent, m.horizontalOffset, m.logPanes[0])
+	}
+	for _, line := range strings.Split(ansi.Strip(m.logsViewport.View()), "\n") {
+		if ansi.StringWidth(line) > m.logsViewport.Width {
+			t.Fatalf("wrapped line width = %d, want <= %d: %q", ansi.StringWidth(line), m.logsViewport.Width, line)
+		}
+	}
+
+	updated, _ = m.handleLogsKey(tea.KeyMsg{Type: tea.KeyRight})
+	m = updated.(model)
+	if m.horizontalOffset != 0 {
+		t.Fatalf("wrapped pane scrolled horizontally to %d", m.horizontalOffset)
+	}
+}
+
+func TestNumberKeyTogglesLineNumbersInLogsAndCode(t *testing.T) {
+	for _, mode := range []int{modeLogs, modeCode} {
+		v := viewport.New(20, 5)
+		m := model{mode: mode, logs: "first\nsecond", logsViewport: v}
+		key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'#'}}
+		var updated tea.Model
+		if mode == modeLogs {
+			updated, _ = m.handleLogsKey(key)
+		} else {
+			updated, _ = m.handleCodeKey(key)
+		}
+		m = updated.(model)
+		plain := ansi.Strip(m.logsViewport.View())
+		if !m.showLineNumbers || !strings.Contains(plain, "1 | first") || !strings.Contains(plain, "2 | second") {
+			t.Fatalf("mode %d did not show line numbers: %q", mode, plain)
+		}
 	}
 }

@@ -97,6 +97,7 @@ Pipeline list:
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `ctrl+n`/`ctrl+p`/`ctrl+f`/`ctrl+b`: scroll down/up/right/left
 - `left`/`right`: scroll overflowing pane content horizontally
+- `w`: toggle wrapping in the focused pane
 - `x`: close focused split
 - `o`: close all other splits
 - `t`: open theme picker
@@ -114,6 +115,7 @@ Pipeline detail:
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `ctrl+n`/`ctrl+p`/`ctrl+f`/`ctrl+b`: scroll down/up/right/left
 - `left`/`right`: scroll overflowing pane content horizontally
+- `w`: toggle wrapping in the focused pane
 - `x`: close focused split
 - `o`: close all other splits
 - `t`: open theme picker
@@ -121,6 +123,7 @@ Pipeline detail:
 - `S`: start or retry selected job when available
 - `c`: cancel selected job when available
 - `l`: open logs for the selected job in the focused split
+- `C`: open the resolved code for the selected job in the focused split
 - `L`: toggle the latest five log lines below running and failed jobs in the focused pane
 - `r`: refresh
 - `q`: close the focused split, or quit with one pane
@@ -132,6 +135,8 @@ Jobs list:
 - `s`: start or retry selected job when available
 - `c`: cancel selected job when available
 - `l`: open logs
+- `C`: open the resolved job code
+- `w`: toggle wrapping in the focused pane
 - `t`: open theme picker
 - `b`: cycle active border style
 - `r`: refresh
@@ -148,6 +153,8 @@ Logs:
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
 - `ctrl+n`/`ctrl+p`/`ctrl+f`/`ctrl+b`: scroll down/up/right/left
 - `left`/`right`: scroll overflowing pane content horizontally
+- `w`: toggle wrapping in the focused pane
+- `#`: toggle line numbers
 - `x`: close focused split
 - `o`: close all other splits
 - `/`: search logs incrementally
@@ -158,6 +165,8 @@ Logs:
 - `r`: reload
 - `q`: close the focused split, or quit with one pane
 - `esc`: go back
+
+The code viewer uses the same scrolling, wrapping, line-number, split-pane, and search controls as logs. It shows the resolved `before_script`, `script`, and `after_script` from the selected pipeline's commit.
 
 ## Development
 

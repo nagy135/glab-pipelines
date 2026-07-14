@@ -22,6 +22,8 @@ func (m model) View() string {
 		return m.fillScreen(m.viewConfirm())
 	case modeLogs:
 		return m.fillScreen(m.viewLogs())
+	case modeCode:
+		return m.fillScreen(m.viewCode())
 	case modeTheme:
 		return m.viewTheme()
 	}
@@ -106,7 +108,7 @@ func (m model) viewPipelines() string {
 	if m.repo != "" {
 		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -154,7 +156,7 @@ func (m model) viewDetail() string {
 		inlineHint = "hide inline"
 	}
 	b.WriteString(m.headerLine(title) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -256,7 +258,7 @@ func (m model) renderInlineLogLines(j job, width int, show bool) string {
 func (m model) viewJobs() string {
 	var b strings.Builder
 	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs")) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
 	var body strings.Builder
 	if m.message != "" {
 		body.WriteString(yellowStyle.Render(m.message) + "\n")
@@ -309,7 +311,7 @@ func (m model) viewLogs() string {
 	if m.logSearchActive {
 		nHint = keyHint("n/N", "match")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), nHint, keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("#", "lines"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), nHint, keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -326,9 +328,52 @@ func (m model) viewLogs() string {
 	}
 	body.WriteString("\n")
 	logViewport := m.logsViewport
-	logWidth := max(logViewport.Width, widestLineWidth(m.logs))
+	rendered := m.renderLogContent()
+	logViewport.SetContent(rendered)
+	logWidth := logViewport.Width
+	if !m.wrapContent {
+		logWidth = max(logWidth, widestLineWidth(rendered))
+	}
 	logViewport.Width = logWidth
 	body.WriteString(renderViewportBody(logViewport.View(), logWidth, logViewport.Height, logViewport.YOffset, logViewport.TotalLineCount()))
+	b.WriteString(m.renderSinglePane(body.String()))
+	return b.String()
+}
+
+func (m model) viewCode() string {
+	var b strings.Builder
+	name := "unknown job"
+	status := ""
+	if m.logJob != nil {
+		name = m.logJob.Name
+		status = m.logJob.Status
+	}
+	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs", "Code")+" "+metaPill("job", truncate(name, 28))+" "+metaPill("status", status)) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "scroll"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("#", "lines"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("/", "search"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("n/N", "match"), keyHint("r", "reload"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	if len(m.logPanes) > 1 {
+		b.WriteString(m.viewLogSplits())
+		return b.String()
+	}
+	var body strings.Builder
+	if m.message != "" {
+		body.WriteString(yellowStyle.Render(m.message) + "\n")
+	}
+	if m.logsLoading {
+		body.WriteString(dimStyle.Render("loading job code...") + "\n")
+	}
+	if status := m.logSearchStatus(); status != "" {
+		body.WriteString(status + "\n")
+	}
+	body.WriteString("\n")
+	codeViewport := m.logsViewport
+	rendered := m.renderLogContent()
+	codeViewport.SetContent(rendered)
+	codeWidth := codeViewport.Width
+	if !m.wrapContent {
+		codeWidth = max(codeWidth, widestLineWidth(rendered))
+	}
+	codeViewport.Width = codeWidth
+	body.WriteString(renderViewportBody(codeViewport.View(), codeWidth, codeViewport.Height, codeViewport.YOffset, codeViewport.TotalLineCount()))
 	b.WriteString(m.renderSinglePane(body.String()))
 	return b.String()
 }

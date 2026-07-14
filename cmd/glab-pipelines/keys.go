@@ -15,11 +15,14 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.String() == "Q" {
 		return m, tea.Quit
 	}
-	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && !(m.mode == modeLogs && m.logSearchMode) {
+	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.openThemePicker(), tea.ClearScreen
 	}
-	if key.String() == "b" && m.mode != modeConfirm && !(m.mode == modeLogs && m.logSearchMode) {
+	if key.String() == "b" && m.mode != modeConfirm && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.cycleActiveBorder(), tea.ClearScreen
+	}
+	if key.String() == "w" && m.mode != modeConfirm && m.mode != modeTheme && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
+		return m.toggleWrap(), tea.ClearScreen
 	}
 	switch m.mode {
 	case modePipelines:
@@ -32,6 +35,8 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmKey(key)
 	case modeLogs:
 		return m.handleLogsKey(key)
+	case modeCode:
+		return m.handleCodeKey(key)
 	case modeTheme:
 		return m.handleThemeKey(key)
 	}
@@ -49,6 +54,22 @@ func (m model) cycleActiveBorder() model {
 	return m
 }
 
+func (m model) toggleWrap() model {
+	m.wrapContent = !m.wrapContent
+	m.horizontalOffset = 0
+	if m.mode == modeLogs || m.mode == modeCode {
+		m = m.configureLogViewport()
+		m.logsViewport.SetContent(m.renderLogContent())
+	}
+	return m.saveActiveLogPane()
+}
+
+func (m model) toggleLineNumbers() model {
+	m.showLineNumbers = !m.showLineNumbers
+	m.logsViewport.SetContent(m.renderLogContent())
+	return m.saveActiveLogPane()
+}
+
 func (m model) openThemePicker() model {
 	m.themeBackMode = m.mode
 	m.themeCursor = themeIndex(m.themeName)
@@ -62,7 +83,7 @@ func (m model) closeThemePicker() model {
 		m.themeBackMode = modePipelines
 	}
 	backMode := m.themeBackMode
-	if backMode == modeLogs {
+	if backMode == modeLogs || backMode == modeCode {
 		if idx := m.logPaneIndex(m.activeLogPane); idx >= 0 {
 			m = m.restoreLogPane(m.logPanes[idx])
 		} else {
@@ -70,6 +91,10 @@ func (m model) closeThemePicker() model {
 		}
 	} else {
 		m.mode = backMode
+	}
+	if m.mode == modeCode {
+		m.logsViewport.SetContent(m.renderLogContent())
+		m = m.saveActiveLogPane()
 	}
 	m.themeBackMode = 0
 	m.message = ""
@@ -281,6 +306,12 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		job := logTarget(m.detail.DisplayJobs[m.jobsCursor])
 		return m.openLogs(job, modeDetail)
+	case "C":
+		if m.detail == nil || len(m.detail.DisplayJobs) == 0 {
+			m.message = "no jobs loaded"
+			return m, nil
+		}
+		return m.openCode(m.detail.DisplayJobs[m.jobsCursor].Current, modeDetail)
 	case "p":
 		if m.detail == nil || len(m.detail.DisplayJobs) == 0 {
 			m.message = "no jobs loaded"
@@ -351,6 +382,8 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "l":
 		job := logTarget(m.detail.DisplayJobs[m.jobsCursor])
 		return m.openLogs(job, modeJobs)
+	case "C":
+		return m.openCode(m.detail.DisplayJobs[m.jobsCursor].Current, modeJobs)
 	}
 	return m, nil
 }
@@ -367,6 +400,17 @@ func (m model) openLogs(job job, backMode int) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m model) openCode(job job, backMode int) (tea.Model, tea.Cmd) {
+	if m.logSplitRoot == nil || m.activeLogPane == 0 {
+		m = m.initLogPanes()
+	}
+	m.logsViewport = viewport.New(max(1, m.width), max(1, m.height-4))
+	m = m.setActivePaneCode(job, backMode)
+	var fetchCmd tea.Cmd
+	m, fetchCmd = m.requestJobCode(job)
+	return m, tea.Batch(tea.ClearScreen, fetchCmd)
+}
+
 func (m model) scrollPage(direction int) model {
 	_, paneHeight := m.logSplitAreaSize()
 	page := max(1, paneHeight-3)
@@ -380,6 +424,9 @@ func (m model) scrollLine(direction int) model {
 }
 
 func (m model) scrollHorizontal(direction int) model {
+	if m.wrapContent {
+		return m
+	}
 	const step = 8
 	m.horizontalOffset = max(0, m.horizontalOffset+direction*step)
 	return m.saveActiveLogPane()
@@ -404,6 +451,8 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.scrollHorizontal(1), nil
 	case "left":
 		return m.scrollHorizontal(-1), nil
+	case "#":
+		return m.toggleLineNumbers(), nil
 	case "s":
 		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
 	case "v":
@@ -457,6 +506,78 @@ func (m model) handleLogsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.jobsCursor = moveDetailJobCursor(m.jobsCursor, m.detail.DisplayJobs, 1)
 		}
 		return m.leaveLogs(modeDetail), tea.ClearScreen
+	case "N":
+		if m.logSearchActive {
+			return m.jumpLogSearchMatch(-1).saveActiveLogPane(), nil
+		}
+	}
+	var cmd tea.Cmd
+	m.logsViewport, cmd = m.logsViewport.Update(key)
+	return m.saveActiveLogPane(), cmd
+}
+
+func (m model) handleCodeKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.logSearchMode {
+		return m.handleLogSearchKey(key)
+	}
+	switch key.String() {
+	case "ctrl+f", "right":
+		return m.scrollHorizontal(1), nil
+	case "ctrl+b", "left":
+		return m.scrollHorizontal(-1), nil
+	case "#":
+		return m.toggleLineNumbers(), nil
+	case "ctrl+n":
+		m.logsViewport.LineDown(1)
+		return m.saveActiveLogPane(), nil
+	case "ctrl+p":
+		m.logsViewport.LineUp(1)
+		return m.saveActiveLogPane(), nil
+	case "s":
+		return m.splitActiveLogPane(logSplitHorizontal), tea.ClearScreen
+	case "v":
+		return m.splitActiveLogPane(logSplitVertical), tea.ClearScreen
+	case "x":
+		return m.closeActiveLogPane(), tea.ClearScreen
+	case "o":
+		return m.keepActiveLogPaneOnly(), tea.ClearScreen
+	case "ctrl+h":
+		return m.focusLogPane("h"), nil
+	case "ctrl+j":
+		return m.focusLogPane("j"), nil
+	case "ctrl+k":
+		return m.focusLogPane("k"), nil
+	case "ctrl+l":
+		return m.focusLogPane("l"), nil
+	case "q":
+		if len(m.logPanes) > 1 {
+			return m.closeActiveLogPane(), tea.ClearScreen
+		}
+		return m, tea.Quit
+	case "esc":
+		return m.leaveLogs(m.logBackMode), tea.ClearScreen
+	case "r":
+		if m.logJob == nil {
+			return m, nil
+		}
+		m.logsLoading = true
+		m.message = ""
+		m = m.saveActiveLogPane()
+		var cmd tea.Cmd
+		m, cmd = m.requestJobCode(*m.logJob)
+		return m, cmd
+	case "/":
+		return m.beginLogSearch().saveActiveLogPane(), nil
+	case "g":
+		m.logsViewport.GotoTop()
+		return m.saveActiveLogPane(), nil
+	case "G":
+		m.logsViewport.GotoBottom()
+		return m.saveActiveLogPane(), nil
+	case "n":
+		if m.logSearchActive {
+			return m.jumpLogSearchMatch(1).saveActiveLogPane(), nil
+		}
 	case "N":
 		if m.logSearchActive {
 			return m.jumpLogSearchMatch(-1).saveActiveLogPane(), nil
