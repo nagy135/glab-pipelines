@@ -353,9 +353,13 @@ func statusColor(status string) lipgloss.Color {
 		return statusGreenColor
 	case "failed":
 		return statusRedColor
+	case "canceled", "cancelled":
+		return statusRedColor
 	case "running", "pending", "waiting_for_resource":
 		return statusYellowColor
 	case "manual", "scheduled":
+		return statusBlueColor
+	case "neutral", "skipped":
 		return statusBlueColor
 	case "preparing":
 		return statusCyanColor

@@ -12,7 +12,7 @@ import (
 const maxTraceRetries = 3
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(fetchPipelinesCmd(m.repo, m.status, m.limit, m.listRequest), m.activity.Tick)
+	return tea.Batch(fetchPipelinesCmd(m.provider, m.repo, m.status, m.limit, m.listRequest), m.activity.Tick)
 }
 
 func newActivitySpinner() spinner.Model {
@@ -54,7 +54,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.list = msg.pipelines
-		savePipelineCache(m.repo, m.status, m.limit, m.list)
+		savePipelineCache(providerScope(m.provider, m.repo), m.status, m.limit, m.list)
 		if m.listCursor >= len(m.list) {
 			m.listCursor = max(0, len(m.list)-1)
 		}
@@ -387,11 +387,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) rememberJobDurations(jobs []job) model {
+	scope := providerScope(m.provider, m.repo)
 	if m.jobDurations == nil {
-		m.jobDurations = loadJobDurations(m.repo)
+		m.jobDurations = loadJobDurations(scope)
 	}
 	if recordJobDurations(m.jobDurations, jobs) {
-		saveJobDurations(m.repo, m.jobDurations)
+		saveJobDurations(scope, m.jobDurations)
 	}
 	return m
 }

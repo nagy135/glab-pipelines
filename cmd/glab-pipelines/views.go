@@ -104,7 +104,7 @@ func (m model) viewPipelines() string {
 	if label == "active" {
 		label = "active"
 	}
-	b.WriteString(m.headerLine(breadcrumbs("Pipelines")+" "+metaPill("status", label)+" "+metaPill("limit", fmt.Sprintf("%d", m.limit))) + "\n")
+	b.WriteString(m.headerLine(breadcrumbs("Pipelines")+" "+metaPill("provider", m.provider.name())+" "+metaPill("status", label)+" "+metaPill("limit", fmt.Sprintf("%d", m.limit))) + "\n")
 	if m.repo != "" {
 		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
@@ -149,6 +149,7 @@ func (m model) viewPipelines() string {
 
 func (m model) viewDetail() string {
 	var b strings.Builder
+	startHint, cancelHint := m.jobActionHints()
 	title := breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID)) + " " + metaPill("refresh", m.refresh.String())
 	inlineHint := "show inline"
 	if m.showInlineLogs {
@@ -156,7 +157,7 @@ func (m model) viewDetail() string {
 		inlineHint = "hide inline"
 	}
 	b.WriteString(m.headerLine(title) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("L", inlineHint), keyHint("S", "start/retry"), keyHint("c", "cancel"), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("L", inlineHint), keyHint("S", startHint), keyHint("c", cancelHint), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -257,8 +258,9 @@ func (m model) renderInlineLogLines(j job, width int, show bool) string {
 
 func (m model) viewJobs() string {
 	var b strings.Builder
+	startHint, cancelHint := m.jobActionHints()
 	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs")) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s", "start/retry"), keyHint("c", "cancel"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s", startHint), keyHint("c", cancelHint), keyHint("l", "logs"), keyHint("C", "code"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
 	var body strings.Builder
 	if m.message != "" {
 		body.WriteString(yellowStyle.Render(m.message) + "\n")
@@ -271,7 +273,7 @@ func (m model) viewJobs() string {
 	for i, row := range m.detail.DisplayJobs {
 		j := row.Current
 		progress := renderJobProgress(j, m.jobDurations[j.Name].Average, time.Now(), max(1, m.width-4))
-		keys := availableKeys(j)
+		keys := availableKeysForProvider(m.provider, j)
 		if logTarget(row).ID != j.ID {
 			if keys == "-" {
 				keys = ""
@@ -393,7 +395,11 @@ func (m model) viewConfirm() string {
 
 	var b strings.Builder
 	a := *m.pending
-	b.WriteString(boldStyle.Render(a.Verb+" job?") + "\n")
+	target := "job"
+	if m.provider == providerGitHub && a.Endpoint == "cancel" {
+		target = "workflow run"
+	}
+	b.WriteString(boldStyle.Render(a.Verb+" "+target+"?") + "\n")
 	b.WriteString(dimStyle.Render(fmt.Sprintf("#%d", a.Job.ID)) + "  " + cyanStyle.Render(a.Job.Name) + "\n\n")
 	prodPlay := strings.Contains(strings.ToLower(a.Job.Name), "prod") && a.Endpoint == "play"
 	if prodPlay {
@@ -406,7 +412,7 @@ func (m model) viewConfirm() string {
 			b.WriteString("\n" + yellowStyle.Render(m.message))
 		}
 	} else {
-		b.WriteString("Send this action to GitLab?\n\n")
+		b.WriteString(fmt.Sprintf("Send this action to %s?\n\n", providerDisplayName(m.provider)))
 		b.WriteString(hintBar(keyHint("y", "confirm"), keyHint("n", "cancel")))
 	}
 	panelWidth := 62
@@ -425,6 +431,13 @@ func (m model) viewConfirm() string {
 		BorderForeground(paneBorderActiveColor).
 		Render(b.String())
 	return overlayCentered(background, panel, m.width, m.height)
+}
+
+func (m model) jobActionHints() (string, string) {
+	if m.provider == providerGitHub {
+		return "rerun", "cancel run"
+	}
+	return "start/retry", "cancel"
 }
 
 func overlayCentered(background, foreground string, width, height int) string {

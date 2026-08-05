@@ -7,8 +7,15 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 )
 
-func resolveAction(key string, j job) (pendingAction, bool) {
+func resolveAction(provider ciProvider, key string, j job) (pendingAction, bool) {
 	if key == "s" {
+		if provider == providerGitHub {
+			switch j.Status {
+			case "failed", "success", "canceled", "cancelled", "neutral", "skipped":
+				return pendingAction{Job: j, Endpoint: "rerun", Verb: "Rerun"}, true
+			}
+			return pendingAction{}, false
+		}
 		switch j.Status {
 		case "manual":
 			return pendingAction{Job: j, Endpoint: "play", Verb: "Play"}, true
@@ -26,12 +33,23 @@ func resolveAction(key string, j job) (pendingAction, bool) {
 }
 
 func availableKeys(j job) string {
+	return availableKeysForProvider(providerGitLab, j)
+}
+
+func availableKeysForProvider(provider ciProvider, j job) string {
 	var keys []string
-	switch j.Status {
-	case "manual":
-		keys = append(keys, "s:play")
-	case "failed", "success", "canceled", "cancelled":
-		keys = append(keys, "s:retry")
+	if provider == providerGitHub {
+		switch j.Status {
+		case "failed", "success", "canceled", "cancelled", "neutral", "skipped":
+			keys = append(keys, "s:rerun")
+		}
+	} else {
+		switch j.Status {
+		case "manual":
+			keys = append(keys, "s:play")
+		case "failed", "success", "canceled", "cancelled":
+			keys = append(keys, "s:retry")
+		}
 	}
 	switch j.Status {
 	case "running", "pending", "created", "preparing", "waiting_for_resource":

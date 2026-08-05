@@ -307,6 +307,7 @@ func sanitizePipeline(p *pipeline) {
 	p.WebURL = sanitizeTerminalText(p.WebURL)
 	p.Commit.Title = sanitizeTerminalText(p.Commit.Title)
 	p.CommitTitle = sanitizeTerminalText(p.CommitTitle)
+	p.WorkflowPath = sanitizeTerminalText(p.WorkflowPath)
 	if p.CommitTitle == "" {
 		p.CommitTitle = p.Commit.Title
 	}

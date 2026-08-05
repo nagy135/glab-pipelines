@@ -24,19 +24,29 @@ const (
 
 var activeStatuses = []string{"running", "pending", "created", "waiting_for_resource", "preparing", "manual", "scheduled"}
 
+type ciProvider string
+
+const (
+	// Keep GitLab as the zero value so existing model construction and stored data
+	// continue to behave as they did before provider support was added.
+	providerGitLab ciProvider = ""
+	providerGitHub ciProvider = "github"
+)
+
 type pipeline struct {
-	ID          int        `json:"id"`
-	Status      string     `json:"status"`
-	Ref         string     `json:"ref"`
-	SHA         string     `json:"sha"`
-	Source      string     `json:"source"`
-	UpdatedAt   string     `json:"updated_at"`
-	CreatedAt   string     `json:"created_at"`
-	StartedAt   string     `json:"started_at"`
-	Duration    *float64   `json:"duration"`
-	WebURL      string     `json:"web_url"`
-	Commit      commitInfo `json:"commit"`
-	CommitTitle string     `json:"commit_title,omitempty"`
+	ID           int        `json:"id"`
+	Status       string     `json:"status"`
+	Ref          string     `json:"ref"`
+	SHA          string     `json:"sha"`
+	Source       string     `json:"source"`
+	UpdatedAt    string     `json:"updated_at"`
+	CreatedAt    string     `json:"created_at"`
+	StartedAt    string     `json:"started_at"`
+	Duration     *float64   `json:"duration"`
+	WebURL       string     `json:"web_url"`
+	Commit       commitInfo `json:"commit"`
+	CommitTitle  string     `json:"commit_title,omitempty"`
+	WorkflowPath string     `json:"workflow_path,omitempty"`
 }
 
 type commitInfo struct {
@@ -119,6 +129,7 @@ type logSplitNode struct {
 }
 
 type model struct {
+	provider          ciProvider
 	repo              string
 	status            string
 	limit             int

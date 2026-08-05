@@ -4,18 +4,21 @@
   <img src="docs/heading.jpeg" alt="glab-pipelines terminal interface" width="100%">
 </p>
 
-Interactive terminal UI for viewing and managing GitLab pipelines through the GitLab CLI (`glab`).
+Interactive terminal UI for viewing and managing GitLab CI pipelines through `glab` and GitHub Actions workflow runs through `gh`.
+
+The provider is detected from the current repository's `origin` remote. You can also select it explicitly with `--gitlab`, `--github`, or `--provider`.
 
 ## Prerequisites
 
 - Go 1.22 or newer
-- `glab` installed and authenticated
-- Access to the GitLab project you want to inspect
+- `glab` installed and authenticated for GitLab repositories, or `gh` installed and authenticated for GitHub repositories
+- Access to the project or repository you want to inspect
 
-Authenticate `glab` before running this tool:
+Authenticate the CLI for your provider before running this tool:
 
 ```sh
-glab auth login
+glab auth login  # GitLab
+gh auth login    # GitHub
 ```
 
 ## Build
@@ -61,19 +64,30 @@ glab-pipelines manual          # only manual pipelines
 glab-pipelines pending         # any single status
 glab-pipelines all             # newest pipelines regardless of status
 glab-pipelines -R group/proj active
+glab-pipelines --github -R owner/repo all
+glab-pipelines --gitlab -R group/project active
 ```
 
 If you run with `go run`, pass arguments after the package path:
 
 ```sh
-go run ./cmd/glab-pipelines -R group/project active
+go run ./cmd/glab-pipelines --github -R owner/repo active
 ```
+
+For GitHub, `running`, `pending`, `success`, `failed`, `cancelled`, and the native GitHub Actions status/conclusion names are accepted. The default `active` view combines all queued and in-progress states.
 
 ## Configuration
 
 Environment variables:
 
 ```sh
+CI_TUI_PROVIDER=auto       # auto, github, or gitlab
+CI_TUI_LIMIT=10            # newest pipelines/runs to show
+CI_TUI_REFRESH=20          # pipeline/run detail refresh interval in seconds
+CI_TUI_LOG_REFRESH=3       # job log refresh interval in seconds
+CI_TUI_THEME=default       # startup color theme override
+
+# Legacy names remain supported for compatibility:
 GLAB_TUI_LIMIT=10          # newest pipelines to show
 GLAB_TUI_REFRESH=20        # pipeline detail refresh interval in seconds
 GLAB_TUI_LOG_REFRESH=3     # job log refresh interval in seconds
@@ -82,7 +96,9 @@ GLAB_TUI_THEME=default     # startup color theme override
 
 Theme picker selections are saved to `~/.local/share/glab-pipelines/theme`. Active border selections are saved to `~/.local/share/glab-pipelines/border`.
 
-While pipeline details or running job logs are being watched, a short ascending cue plays when a job succeeds and a descending cue plays when a job fails. Split panes continue watching independently.
+While pipeline/run details or running job logs are being watched, a short ascending cue plays when a job succeeds and a descending cue plays when a job fails. Split panes continue watching independently.
+
+On GitLab, `s` plays or retries a job and `c` cancels that job. On GitHub, `s` reruns the selected completed job (and its dependent jobs), while `c` cancels the selected job's entire workflow run, matching the operations exposed by GitHub Actions. The code viewer shows resolved job scripts on GitLab and the workflow YAML from the run's commit on GitHub.
 
 Themes: `default`, `gruvbox-material`, `tokyo-night`, `catppuccin`, `gruvbox`, `nord`, `dracula`, `kanagawa`, `everforest`, `rose-pine`, `onedark`, `solarized-dark`, `ayu`, `material`, `nightfox`, `sonokai`, `moonfly`, `oceanic-next`, `palenight`, `monokai`, `papercolor`, `edge`.
 

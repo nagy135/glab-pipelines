@@ -172,7 +172,7 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.listRequest++
 		m.loadingList = true
 		m.message = ""
-		return m, fetchPipelinesCmd(m.repo, m.status, m.limit, m.listRequest)
+		return m, fetchPipelinesCmd(m.provider, m.repo, m.status, m.limit, m.listRequest)
 	case "up", "k":
 		m.listCursor = moveUp(m.listCursor, len(m.list))
 		m = m.saveActiveLogPane()
@@ -289,7 +289,7 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if actionKey == "S" {
 			actionKey = "s"
 		}
-		action, ok := resolveAction(actionKey, job)
+		action, ok := resolveAction(m.provider, actionKey, job)
 		if !ok {
 			m.message = fmt.Sprintf("action not available for %s (%s)", job.Name, job.Status)
 			return m, nil
@@ -369,7 +369,7 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		job := m.detail.DisplayJobs[m.jobsCursor].Current
-		action, ok := resolveAction(key.String(), job)
+		action, ok := resolveAction(m.provider, key.String(), job)
 		if !ok {
 			m.message = fmt.Sprintf("action not available for %s (%s)", job.Name, job.Status)
 			return m, nil
@@ -627,7 +627,7 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirmText = ""
 			m.actionInFlight = true
 			m.actionRequest++
-			return m, runActionCmd(m.repo, action, m.actionRequest)
+			return m, runActionCmd(m.provider, m.repo, action, m.actionRequest)
 		case "n", "q", "esc":
 			m.pending = nil
 			if m.confirmBackMode == 0 {
@@ -671,7 +671,7 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.confirmText = ""
 		m.actionInFlight = true
 		m.actionRequest++
-		return m, runActionCmd(m.repo, action, m.actionRequest)
+		return m, runActionCmd(m.provider, m.repo, action, m.actionRequest)
 	}
 	return m, nil
 }

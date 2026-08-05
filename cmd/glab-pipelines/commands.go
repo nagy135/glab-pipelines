@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -13,24 +12,24 @@ const (
 	inlineLogTailBytes = 64 * 1024
 )
 
-func fetchPipelinesCmd(repo, status string, limit int, requestID int) tea.Cmd {
+func fetchPipelinesCmd(provider ciProvider, repo, status string, limit int, requestID int) tea.Cmd {
 	return func() tea.Msg {
-		pipelines, err := fetchPipelines(repo, status, limit)
+		pipelines, err := fetchProviderPipelines(provider, repo, status, limit)
 		return pipelinesMsg{requestID: requestID, pipelines: pipelines, err: err}
 	}
 }
 
-func fetchDetailCmd(repo string, pid, requestID, pollID int) tea.Cmd {
+func fetchDetailCmd(provider ciProvider, repo string, pid, requestID, pollID int) tea.Cmd {
 	return func() tea.Msg {
-		d, err := fetchDetail(repo, pid)
+		d, err := fetchProviderDetail(provider, repo, pid)
 		return detailMsg{pid: pid, requestID: requestID, pollID: pollID, detail: d, err: err}
 	}
 }
 
-func fetchLogsCmd(repo string, j job, requestID, pollID int) tea.Cmd {
+func fetchLogsCmd(provider ciProvider, repo string, j job, requestID, pollID int) tea.Cmd {
 	return func() tea.Msg {
-		out, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/jobs/%d/trace", j.ID))
-		updated, statusErr := fetchJob(repo, j.ID)
+		out, err := fetchProviderLogs(provider, repo, j.ID, false)
+		updated, statusErr := fetchProviderJob(provider, repo, j.ID)
 		var updatedPtr *job
 		if statusErr == nil {
 			updatedPtr = &updated
@@ -39,9 +38,9 @@ func fetchLogsCmd(repo string, j job, requestID, pollID int) tea.Cmd {
 	}
 }
 
-func fetchJobCodeCmd(repo string, j job, requestID int) tea.Cmd {
+func fetchJobCodeCmd(provider ciProvider, repo string, j job, requestID int) tea.Cmd {
 	return func() tea.Msg {
-		code, err := fetchJobCode(repo, j)
+		code, err := fetchProviderJobCode(provider, repo, j)
 		return codeMsg{jobID: j.ID, requestID: requestID, code: sanitizeTerminalText(code), err: err}
 	}
 }
@@ -56,11 +55,9 @@ func tickLogsCmd(jobID int64, pollID int, refresh time.Duration, force bool) tea
 	})
 }
 
-func fetchInlineLogCmd(repo string, j job, requestID, pollID int) tea.Cmd {
+func fetchInlineLogCmd(provider ciProvider, repo string, j job, requestID, pollID int) tea.Cmd {
 	return func() tea.Msg {
-		endpoint := fmt.Sprintf("projects/:id/jobs/%d/trace", j.ID)
-		header := fmt.Sprintf("Range: bytes=-%d", inlineLogTailBytes)
-		out, err := glabAPIWithHeaders(repo, "", endpoint, header)
+		out, err := fetchProviderLogs(provider, repo, j.ID, true)
 		return inlineLogMsg{
 			jobID:     j.ID,
 			requestID: requestID,
@@ -76,10 +73,9 @@ func tickInlineLogsCmd(pollID int, refresh time.Duration) tea.Cmd {
 	return tea.Tick(refresh, func(time.Time) tea.Msg { return inlineLogTickMsg{pollID: pollID} })
 }
 
-func runActionCmd(repo string, action pendingAction, requestID int) tea.Cmd {
+func runActionCmd(provider ciProvider, repo string, action pendingAction, requestID int) tea.Cmd {
 	return func() tea.Msg {
-		endpoint := fmt.Sprintf("projects/:id/jobs/%d/%s", action.Job.ID, action.Endpoint)
-		_, err := glabAPI(repo, "POST", endpoint)
+		err := runProviderAction(provider, repo, action)
 		return actionMsg{requestID: requestID, action: action, err: err}
 	}
 }
@@ -96,7 +92,7 @@ func (m model) requestDetail(pid int, restartPolling bool) (model, tea.Cmd) {
 	}
 	m.nextRequestID++
 	m.detailRequests[pid] = m.nextRequestID
-	return m, fetchDetailCmd(m.repo, pid, m.nextRequestID, m.detailPolls[pid])
+	return m, fetchDetailCmd(m.provider, m.repo, pid, m.nextRequestID, m.detailPolls[pid])
 }
 
 func (m model) requestLogs(j job, restartPolling bool) (model, tea.Cmd) {
@@ -114,7 +110,7 @@ func (m model) requestLogs(j job, restartPolling bool) (model, tea.Cmd) {
 	}
 	m.nextRequestID++
 	m.logRequests[j.ID] = m.nextRequestID
-	return m, fetchLogsCmd(m.repo, j, m.nextRequestID, m.logPolls[j.ID])
+	return m, fetchLogsCmd(m.provider, m.repo, j, m.nextRequestID, m.logPolls[j.ID])
 }
 
 func (m model) requestJobCode(j job) (model, tea.Cmd) {
@@ -123,7 +119,7 @@ func (m model) requestJobCode(j job) (model, tea.Cmd) {
 	}
 	m.nextRequestID++
 	m.codeRequests[j.ID] = m.nextRequestID
-	return m, fetchJobCodeCmd(m.repo, j, m.nextRequestID)
+	return m, fetchJobCodeCmd(m.provider, m.repo, j, m.nextRequestID)
 }
 
 func (m model) requestInlineLogs(rows []uiJob) (model, tea.Cmd) {
@@ -145,7 +141,7 @@ func (m model) requestInlineLogs(rows []uiJob) (model, tea.Cmd) {
 		m.nextRequestID++
 		m.inlineLogRequests[j.ID] = m.nextRequestID
 		m.inlineLogsLoading[j.ID] = true
-		cmds = append(cmds, fetchInlineLogCmd(m.repo, j, m.nextRequestID, m.inlineLogPollID))
+		cmds = append(cmds, fetchInlineLogCmd(m.provider, m.repo, j, m.nextRequestID, m.inlineLogPollID))
 	}
 	return m, tea.Batch(cmds...)
 }
