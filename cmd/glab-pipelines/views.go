@@ -322,9 +322,6 @@ func (m model) viewLogs() string {
 	if m.message != "" {
 		body.WriteString(yellowStyle.Render(m.message) + "\n")
 	}
-	if m.logsLoading {
-		body.WriteString(dimStyle.Render("loading...") + "\n")
-	}
 	if status := m.logSearchStatus(); status != "" {
 		body.WriteString(status + "\n")
 	}

@@ -569,7 +569,7 @@ func (m model) configureLogViewport() model {
 	if m.message != "" {
 		height--
 	}
-	if m.logsLoading {
+	if m.logsLoading && m.mode == modeCode {
 		height--
 	}
 	if (m.mode == modeLogs || m.mode == modeCode) && (m.logSearchMode || m.logSearchQuery != "") {

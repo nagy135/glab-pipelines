@@ -42,17 +42,18 @@ func initialModel(args []string) (model, error) {
 	}
 
 	m := model{
-		status:      "active",
-		limit:       envIntAny([]string{"CI_TUI_LIMIT", "GLAB_TUI_LIMIT"}, 10),
-		refresh:     envDurationAny([]string{"CI_TUI_REFRESH", "GLAB_TUI_REFRESH"}, 20*time.Second),
-		logRefresh:  envDurationAny([]string{"CI_TUI_LOG_REFRESH", "GLAB_TUI_LOG_REFRESH"}, 3*time.Second),
-		mode:        modePipelines,
-		activity:    newActivitySpinner(),
-		loadingList: true,
-		listRequest: 1,
-		themeName:   themeName,
-		themeCursor: themeIndex(themeName),
-		borderName:  borderName,
+		status:         "active",
+		limit:          envIntAny([]string{"CI_TUI_LIMIT", "GLAB_TUI_LIMIT"}, 10),
+		refresh:        envDurationAny([]string{"CI_TUI_REFRESH", "GLAB_TUI_REFRESH"}, 20*time.Second),
+		logRefresh:     envDurationAny([]string{"CI_TUI_LOG_REFRESH", "GLAB_TUI_LOG_REFRESH"}, 3*time.Second),
+		mode:           modePipelines,
+		activity:       newActivitySpinner(),
+		loadingList:    true,
+		listRequest:    1,
+		showInlineLogs: true,
+		themeName:      themeName,
+		themeCursor:    themeIndex(themeName),
+		borderName:     borderName,
 	}
 	providerValue := firstEnv("CI_TUI_PROVIDER")
 	for i := 0; i < len(args); i++ {

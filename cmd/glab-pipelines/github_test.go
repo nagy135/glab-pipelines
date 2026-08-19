@@ -20,6 +20,9 @@ func TestInitialModelExplicitGitHubProvider(t *testing.T) {
 	if m.provider != providerGitHub || m.repo != "owner/repo" || m.status != "all" {
 		t.Fatalf("initialModel() provider=%q repo=%q status=%q", m.provider.name(), m.repo, m.status)
 	}
+	if !m.showInlineLogs {
+		t.Fatal("initialModel() did not enable inline logs by default")
+	}
 }
 
 func TestProviderFromRemoteURL(t *testing.T) {

@@ -140,7 +140,7 @@ Pipeline detail:
 - `c`: cancel selected job when available
 - `l`: open logs for the selected job in the focused split
 - `C`: open the resolved code for the selected job in the focused split
-- `L`: toggle the latest five log lines below running and failed jobs in the focused pane
+- `L`: toggle the latest five log lines below running and failed jobs in the focused pane (shown by default)
 - `r`: refresh
 - `q`: close the focused split, or quit with one pane
 - `esc`: go back

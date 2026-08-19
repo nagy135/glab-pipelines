@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -68,6 +69,48 @@ func TestDetailViewShowsTypicalDurationProgress(t *testing.T) {
 	view := ansi.Strip(m.viewDetail())
 	if !strings.Contains(view, "usually 1m00s") || !strings.Contains(view, "%") {
 		t.Fatalf("detail view does not show expected progress: %q", view)
+	}
+}
+
+func TestLogLoadingUsesReservedPaneIndicatorWithoutShiftingContent(t *testing.T) {
+	base := model{
+		mode:         modeLogs,
+		width:        80,
+		height:       20,
+		activity:     newActivitySpinner(),
+		detailID:     10,
+		logRefresh:   time.Second,
+		logJob:       &job{ID: 5, Name: "test", Status: "running"},
+		logs:         "first log line\nsecond log line",
+		logsViewport: viewport.New(78, 15),
+	}
+
+	idle := base.configureLogViewport()
+	loading := base
+	loading.logsLoading = true
+	loading = loading.configureLogViewport()
+	if loading.logsViewport.Height != idle.logsViewport.Height {
+		t.Fatalf("log viewport height shifts while loading: loading=%d idle=%d", loading.logsViewport.Height, idle.logsViewport.Height)
+	}
+
+	idleView := ansi.Strip(idle.viewLogs())
+	loadingView := ansi.Strip(loading.viewLogs())
+	lineIndex := func(view, text string) int {
+		for i, line := range strings.Split(view, "\n") {
+			if strings.Contains(line, text) {
+				return i
+			}
+		}
+		return -1
+	}
+	if idleLine, loadingLine := lineIndex(idleView, "first log line"), lineIndex(loadingView, "first log line"); idleLine < 0 || loadingLine != idleLine {
+		t.Fatalf("first log line shifts while loading: loading=%d idle=%d\nloading view: %q\nidle view: %q", loadingLine, idleLine, loadingView, idleView)
+	}
+	if strings.Contains(loadingView, "loading...") {
+		t.Fatalf("log view still contains a transient loading row: %q", loadingView)
+	}
+	if indicator := ansi.Strip(loading.activityIndicator()); !strings.Contains(loadingView, indicator) {
+		t.Fatalf("loading log view does not show the pane indicator %q: %q", indicator, loadingView)
 	}
 }
 
