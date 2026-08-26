@@ -15,6 +15,7 @@ const (
 	modeLogs
 	modeTheme
 	modeCode
+	modeRefresh
 )
 
 const (
@@ -143,6 +144,8 @@ type model struct {
 	status            string
 	limit             int
 	refresh           time.Duration
+	refreshCursor     int
+	refreshBackMode   int
 	logRefresh        time.Duration
 	mode              int
 	width             int
@@ -217,6 +220,7 @@ type detailMsg struct {
 type actionMsg struct {
 	requestID int
 	action    pendingAction
+	pipeline  pipeline
 	err       error
 }
 

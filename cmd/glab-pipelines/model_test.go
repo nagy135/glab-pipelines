@@ -237,12 +237,17 @@ func TestActionFailureKeepsOriginatingMode(t *testing.T) {
 	}
 }
 
-func TestPipelineActionSuccessRefreshesPipelineList(t *testing.T) {
+func TestPipelineActionSuccessUpdatesPipelineWithoutRefetch(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	m := model{
 		mode:           modePipelines,
 		actionInFlight: true,
 		actionRequest:  2,
 		listRequest:    4,
+		repo:           "group/project",
+		status:         "active",
+		limit:          10,
+		list:           []pipeline{{ID: 123, Status: "running", Ref: "main"}},
 	}
 	action := pendingAction{
 		Target:     actionTargetPipeline,
@@ -250,10 +255,17 @@ func TestPipelineActionSuccessRefreshesPipelineList(t *testing.T) {
 		Verb:       "Cancel",
 	}
 
-	updated, cmd := m.Update(actionMsg{requestID: 2, action: action})
+	updated, cmd := m.Update(actionMsg{
+		requestID: 2,
+		action:    action,
+		pipeline:  pipeline{ID: 123, Status: "canceled", UpdatedAt: "2026-08-26T17:00:00Z"},
+	})
 	m = updated.(model)
-	if cmd == nil || m.actionInFlight || !m.loadingList || m.listRequest != 5 || m.message != "Cancel sent for pipeline #123" {
+	if cmd != nil || m.actionInFlight || m.loadingList || m.listRequest != 4 || m.message != "Pipeline #123 canceled" {
 		t.Fatalf("pipeline action success state = %+v, cmd=%v", m, cmd)
+	}
+	if m.list[0].Status != "canceled" || m.list[0].Ref != "main" || m.list[0].UpdatedAt != "2026-08-26T17:00:00Z" {
+		t.Fatalf("updated pipeline row = %+v", m.list[0])
 	}
 }
 

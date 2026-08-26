@@ -15,14 +15,17 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.String() == "Q" {
 		return m, tea.Quit
 	}
-	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
+	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && m.mode != modeRefresh && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.openThemePicker(), tea.ClearScreen
 	}
-	if key.String() == "b" && m.mode != modeConfirm && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
+	if key.String() == "b" && m.mode != modeConfirm && m.mode != modeRefresh && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.cycleActiveBorder(), tea.ClearScreen
 	}
-	if key.String() == "w" && m.mode != modeConfirm && m.mode != modeTheme && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
+	if key.String() == "w" && m.mode != modeConfirm && m.mode != modeTheme && m.mode != modeRefresh && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.toggleWrap(), tea.ClearScreen
+	}
+	if key.String() == "R" && (m.mode == modePipelines || m.mode == modeDetail || m.mode == modeJobs) {
+		return m.openRefreshPicker(), tea.ClearScreen
 	}
 	switch m.mode {
 	case modePipelines:
@@ -39,6 +42,43 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleCodeKey(key)
 	case modeTheme:
 		return m.handleThemeKey(key)
+	case modeRefresh:
+		return m.handleRefreshKey(key)
+	}
+	return m, nil
+}
+
+func (m model) openRefreshPicker() model {
+	m.refreshBackMode = m.mode
+	m.refreshCursor = refreshIndex(m.refresh)
+	m.mode = modeRefresh
+	m.message = ""
+	return m
+}
+
+func (m model) closeRefreshPicker() model {
+	if m.refreshBackMode == 0 {
+		m.refreshBackMode = modePipelines
+	}
+	m.mode = m.refreshBackMode
+	m.refreshBackMode = 0
+	m.message = ""
+	return m
+}
+
+func (m model) handleRefreshKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "q", "esc":
+		return m.closeRefreshPicker(), tea.ClearScreen
+	case "up", "k":
+		m.refreshCursor = moveUp(m.refreshCursor, len(refreshOptions))
+	case "down", "j":
+		m.refreshCursor = moveDown(m.refreshCursor, len(refreshOptions))
+	case "enter":
+		m.refresh = refreshOptions[m.refreshCursor].Duration
+		m = m.closeRefreshPicker()
+		m.message = "refetch interval: " + m.refresh.String()
+		return m, tea.ClearScreen
 	}
 	return m, nil
 }
@@ -168,7 +208,7 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "esc":
 		return m, tea.Quit
-	case "r", "R":
+	case "r":
 		m.listRequest++
 		m.loadingList = true
 		m.message = ""
@@ -372,7 +412,7 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.scrollOffset = 0
 		m.message = ""
 		return m, tea.ClearScreen
-	case "r", "R":
+	case "r":
 		m.message = "refreshing jobs..."
 		m.detailLoading = true
 		var cmd tea.Cmd

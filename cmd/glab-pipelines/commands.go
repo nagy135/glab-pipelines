@@ -75,8 +75,8 @@ func tickInlineLogsCmd(pollID int, refresh time.Duration) tea.Cmd {
 
 func runActionCmd(provider ciProvider, repo string, action pendingAction, requestID int) tea.Cmd {
 	return func() tea.Msg {
-		err := runProviderAction(provider, repo, action)
-		return actionMsg{requestID: requestID, action: action, err: err}
+		updatedPipeline, err := runProviderAction(provider, repo, action)
+		return actionMsg{requestID: requestID, action: action, pipeline: updatedPipeline, err: err}
 	}
 }
 

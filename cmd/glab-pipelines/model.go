@@ -147,10 +147,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if msg.action.Target == actionTargetPipeline {
-			m.message = fmt.Sprintf("%s sent for pipeline #%d", msg.action.Verb, msg.action.PipelineID)
-			m.listRequest++
-			m.loadingList = true
-			return m, fetchPipelinesCmd(m.provider, m.repo, m.status, m.limit, m.listRequest)
+			status := msg.pipeline.Status
+			if status == "" {
+				status = "canceled"
+			}
+			for i := range m.list {
+				if m.list[i].ID != msg.action.PipelineID {
+					continue
+				}
+				m.list[i].Status = status
+				if msg.pipeline.UpdatedAt != "" {
+					m.list[i].UpdatedAt = msg.pipeline.UpdatedAt
+				}
+				if msg.pipeline.Duration != nil {
+					m.list[i].Duration = msg.pipeline.Duration
+				}
+				break
+			}
+			savePipelineCache(providerScope(m.provider, m.repo), m.status, m.limit, m.list)
+			m.message = fmt.Sprintf("Pipeline #%d %s", msg.action.PipelineID, status)
+			return m, nil
 		}
 		m.message = fmt.Sprintf("%s sent for %s", msg.action.Verb, msg.action.Job.Name)
 		if !m.watchesDetail(msg.action.PipelineID) {
@@ -433,6 +449,9 @@ func (m model) detailVisible(pid int) bool {
 	mode := m.mode
 	if mode == modeTheme {
 		mode = m.themeBackMode
+	}
+	if mode == modeRefresh {
+		mode = m.refreshBackMode
 	}
 	if mode == modeConfirm {
 		mode = m.confirmBackMode

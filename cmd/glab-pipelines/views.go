@@ -26,8 +26,46 @@ func (m model) View() string {
 		return m.fillScreen(m.viewCode())
 	case modeTheme:
 		return m.viewTheme()
+	case modeRefresh:
+		return m.viewRefresh()
 	}
 	return ""
+}
+
+func (m model) viewRefresh() string {
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+	height := m.height
+	if height <= 0 {
+		height = 24
+	}
+	contentWidth := max(28, min(44, width-10))
+
+	var b strings.Builder
+	b.WriteString(boldStyle.Render("Refetch interval") + " " + metaPill("current", m.refresh.String()) + "\n")
+	b.WriteString(hintBar(keyHint("j/k", "move"), keyHint("enter", "apply"), keyHint("q", "back")) + "\n\n")
+	for i, option := range refreshOptions {
+		mark := " "
+		if option.Duration == m.refresh {
+			mark = "*"
+		}
+		line := fmt.Sprintf("%s %-8s %s", mark, option.Duration, option.Description)
+		if i == m.refreshCursor {
+			b.WriteString(selectedStyle.Render(line) + "\n")
+		} else {
+			b.WriteString(line + "\n")
+		}
+	}
+
+	panel := lipgloss.NewStyle().
+		Width(contentWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(paneBorderActiveColor).
+		Render(strings.TrimRight(b.String(), "\n"))
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, panel)
 }
 
 func (m model) headerLine(line string) string {
@@ -108,7 +146,7 @@ func (m model) viewPipelines() string {
 	if m.repo != "" {
 		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("enter", "details"), keyHint("c", "cancel"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("enter", "details"), keyHint("c", "cancel"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "close/quit"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -157,7 +195,7 @@ func (m model) viewDetail() string {
 		inlineHint = "hide inline"
 	}
 	b.WriteString(m.headerLine(title) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("L", inlineHint), keyHint("S", startHint), keyHint("c", cancelHint), keyHint("r", "refresh"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("L", inlineHint), keyHint("S", startHint), keyHint("c", cancelHint), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -260,7 +298,7 @@ func (m model) viewJobs() string {
 	var b strings.Builder
 	startHint, cancelHint := m.jobActionHints()
 	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs")) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s", startHint), keyHint("c", cancelHint), keyHint("l", "logs"), keyHint("C", "code"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s", startHint), keyHint("c", cancelHint), keyHint("l", "logs"), keyHint("C", "code"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "back"))) + "\n")
 	var body strings.Builder
 	if m.message != "" {
 		body.WriteString(yellowStyle.Render(m.message) + "\n")

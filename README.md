@@ -120,6 +120,7 @@ Pipeline list:
 - `t`: open theme picker
 - `b`: cycle active border style
 - `r`: refresh
+- `R`: choose the pipeline detail refetch interval
 - `q`: quit
 - `Q`: quit app from any screen
 
@@ -143,6 +144,7 @@ Pipeline detail:
 - `C`: open the resolved code for the selected job in the focused split
 - `L`: toggle the latest five log lines below running and failed jobs in the focused pane (shown by default)
 - `r`: refresh
+- `R`: choose the pipeline detail refetch interval
 - `q`: close the focused split, or quit with one pane
 - `esc`: go back
 
@@ -157,6 +159,7 @@ Jobs list:
 - `t`: open theme picker
 - `b`: cycle active border style
 - `r`: refresh
+- `R`: choose the pipeline detail refetch interval
 - `q`: go back
 
 Logs:

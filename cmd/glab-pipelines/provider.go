@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os/exec"
@@ -127,16 +128,42 @@ func fetchProviderJobCode(provider ciProvider, repo string, j job) (string, erro
 	return fetchJobCode(repo, j)
 }
 
-func runProviderAction(provider ciProvider, repo string, action pendingAction) error {
+func runProviderAction(provider ciProvider, repo string, action pendingAction) (pipeline, error) {
 	if provider == providerGitHub {
-		return runGitHubAction(repo, action)
+		if err := runGitHubAction(repo, action); err != nil {
+			return pipeline{}, err
+		}
+		if action.Target == actionTargetPipeline {
+			updated := action.Pipeline
+			updated.Status = "canceled"
+			return updated, nil
+		}
+		return pipeline{}, nil
 	}
 	if action.Target == actionTargetPipeline {
 		endpoint := fmt.Sprintf("projects/:id/pipelines/%d/cancel", action.PipelineID)
-		_, err := glabAPI(repo, "POST", endpoint)
-		return err
+		out, err := glabAPI(repo, "POST", endpoint)
+		if err != nil {
+			return pipeline{}, err
+		}
+		updated := action.Pipeline
+		updated.Status = "canceled"
+		var response pipeline
+		if json.Unmarshal(out, &response) == nil && response.ID != 0 {
+			sanitizePipeline(&response)
+			if response.Status != "" {
+				updated.Status = response.Status
+			}
+			if response.UpdatedAt != "" {
+				updated.UpdatedAt = response.UpdatedAt
+			}
+			if response.Duration != nil {
+				updated.Duration = response.Duration
+			}
+		}
+		return updated, nil
 	}
 	endpoint := fmt.Sprintf("projects/:id/jobs/%d/%s", action.Job.ID, action.Endpoint)
 	_, err := glabAPI(repo, "POST", endpoint)
-	return err
+	return pipeline{}, err
 }
