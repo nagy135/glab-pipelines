@@ -47,6 +47,31 @@ func TestConfirmViewIsCenteredOverOriginatingView(t *testing.T) {
 	}
 }
 
+func TestPipelineCancelConfirmViewUsesPipelineList(t *testing.T) {
+	p := pipeline{ID: 123, Status: "running", Ref: "main"}
+	m := model{
+		mode:            modeConfirm,
+		confirmBackMode: modePipelines,
+		width:           100,
+		height:          24,
+		list:            []pipeline{p},
+		pending: &pendingAction{
+			Target:     actionTargetPipeline,
+			Pipeline:   p,
+			PipelineID: p.ID,
+			Endpoint:   "cancel",
+			Verb:       "Cancel",
+		},
+	}
+
+	view := ansi.Strip(m.viewConfirm())
+	for _, want := range []string{"Pipelines", "Cancel pipeline?", "#123", "main"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("pipeline cancellation view does not contain %q: %q", want, view)
+		}
+	}
+}
+
 func TestDetailViewShowsTypicalDurationProgress(t *testing.T) {
 	started := time.Now().Add(-30 * time.Second)
 	m := model{

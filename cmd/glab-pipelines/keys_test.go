@@ -25,6 +25,52 @@ func TestPageKeysScrollPane(t *testing.T) {
 	}
 }
 
+func TestPipelineCancelOpensConfirmationAndReturnsToList(t *testing.T) {
+	m := model{
+		mode: modePipelines,
+		list: []pipeline{{
+			ID:     123,
+			Status: "running",
+			Ref:    "main",
+		}},
+	}
+
+	updated, _ := m.handlePipelineKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m = updated.(model)
+	if m.mode != modeConfirm || m.pending == nil || m.pending.Target != actionTargetPipeline || m.pending.PipelineID != 123 {
+		t.Fatalf("pipeline cancellation state = %+v", m)
+	}
+	confirmation := m
+
+	updated, _ = m.handleConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m = updated.(model)
+	if m.mode != modePipelines || m.pending != nil {
+		t.Fatalf("canceling confirmation returned to mode %d with pending action %+v", m.mode, m.pending)
+	}
+
+	updated, cmd := confirmation.handleConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	m = updated.(model)
+	if cmd == nil || m.mode != modePipelines || m.pending != nil || !m.actionInFlight {
+		t.Fatalf("confirming cancellation returned state %+v, cmd=%v", m, cmd)
+	}
+}
+
+func TestPipelineCancelUnavailableForCompletedPipeline(t *testing.T) {
+	m := model{
+		mode: modePipelines,
+		list: []pipeline{{
+			ID:     123,
+			Status: "success",
+		}},
+	}
+
+	updated, cmd := m.handlePipelineKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m = updated.(model)
+	if cmd != nil || m.mode != modePipelines || m.pending != nil || !strings.Contains(m.message, "action not available") {
+		t.Fatalf("completed pipeline cancellation state = %+v, cmd=%v", m, cmd)
+	}
+}
+
 func TestPageKeysScrollLogs(t *testing.T) {
 	v := viewport.New(40, 3)
 	v.SetContent("one\ntwo\nthree\nfour\nfive\nsix")

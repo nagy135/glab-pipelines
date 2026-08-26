@@ -108,7 +108,7 @@ func (m model) viewPipelines() string {
 	if m.repo != "" {
 		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("enter", "details"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("enter", "details"), keyHint("c", "cancel"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("q", "close/quit"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -384,20 +384,29 @@ func (m model) viewConfirm() string {
 	backgroundModel := m
 	backgroundModel.mode = m.confirmBackMode
 	var background string
-	if m.confirmBackMode == modeJobs {
+	switch m.confirmBackMode {
+	case modePipelines:
+		background = backgroundModel.viewPipelines()
+	case modeJobs:
 		background = backgroundModel.viewJobs()
-	} else {
+	default:
 		background = backgroundModel.viewDetail()
 	}
 
 	var b strings.Builder
 	a := *m.pending
 	target := "job"
-	if m.provider == providerGitHub && a.Endpoint == "cancel" {
+	if a.Target == actionTargetPipeline {
+		target = "pipeline"
+	} else if m.provider == providerGitHub && a.Endpoint == "cancel" {
 		target = "workflow run"
 	}
 	b.WriteString(boldStyle.Render(a.Verb+" "+target+"?") + "\n")
-	b.WriteString(dimStyle.Render(fmt.Sprintf("#%d", a.Job.ID)) + "  " + cyanStyle.Render(a.Job.Name) + "\n\n")
+	if a.Target == actionTargetPipeline {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("#%d", a.PipelineID)) + "  " + cyanStyle.Render(a.Pipeline.Ref) + "\n\n")
+	} else {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("#%d", a.Job.ID)) + "  " + cyanStyle.Render(a.Job.Name) + "\n\n")
+	}
 	prodPlay := strings.Contains(strings.ToLower(a.Job.Name), "prod") && a.Endpoint == "play"
 	if prodPlay {
 		b.WriteString(redStyle.Bold(true).Render("Production deploy protection") + "\n")

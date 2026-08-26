@@ -79,8 +79,17 @@ type detail struct {
 	DisplayJobs []uiJob
 }
 
+type actionTarget int
+
+const (
+	actionTargetJob actionTarget = iota
+	actionTargetPipeline
+)
+
 type pendingAction struct {
+	Target     actionTarget
 	Job        job
+	Pipeline   pipeline
 	PipelineID int
 	Endpoint   string
 	Verb       string

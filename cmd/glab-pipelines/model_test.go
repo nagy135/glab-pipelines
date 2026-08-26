@@ -237,6 +237,26 @@ func TestActionFailureKeepsOriginatingMode(t *testing.T) {
 	}
 }
 
+func TestPipelineActionSuccessRefreshesPipelineList(t *testing.T) {
+	m := model{
+		mode:           modePipelines,
+		actionInFlight: true,
+		actionRequest:  2,
+		listRequest:    4,
+	}
+	action := pendingAction{
+		Target:     actionTargetPipeline,
+		PipelineID: 123,
+		Verb:       "Cancel",
+	}
+
+	updated, cmd := m.Update(actionMsg{requestID: 2, action: action})
+	m = updated.(model)
+	if cmd == nil || m.actionInFlight || !m.loadingList || m.listRequest != 5 || m.message != "Cancel sent for pipeline #123" {
+		t.Fatalf("pipeline action success state = %+v, cmd=%v", m, cmd)
+	}
+}
+
 func TestConfirmationMessageSurvivesDetailPoll(t *testing.T) {
 	m := model{
 		mode:            modeConfirm,

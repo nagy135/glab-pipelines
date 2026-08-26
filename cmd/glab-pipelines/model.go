@@ -146,6 +146,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = msg.err.Error()
 			return m, nil
 		}
+		if msg.action.Target == actionTargetPipeline {
+			m.message = fmt.Sprintf("%s sent for pipeline #%d", msg.action.Verb, msg.action.PipelineID)
+			m.listRequest++
+			m.loadingList = true
+			return m, fetchPipelinesCmd(m.provider, m.repo, m.status, m.limit, m.listRequest)
+		}
 		m.message = fmt.Sprintf("%s sent for %s", msg.action.Verb, msg.action.Job.Name)
 		if !m.watchesDetail(msg.action.PipelineID) {
 			return m, nil

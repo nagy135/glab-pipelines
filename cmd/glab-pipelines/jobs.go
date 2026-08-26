@@ -32,6 +32,23 @@ func resolveAction(provider ciProvider, key string, j job) (pendingAction, bool)
 	return pendingAction{}, false
 }
 
+func resolvePipelineAction(key string, p pipeline) (pendingAction, bool) {
+	if key != "c" {
+		return pendingAction{}, false
+	}
+	switch p.Status {
+	case "running", "pending", "created", "preparing", "waiting_for_resource", "waiting_for_callback", "manual", "scheduled":
+		return pendingAction{
+			Target:     actionTargetPipeline,
+			Pipeline:   p,
+			PipelineID: p.ID,
+			Endpoint:   "cancel",
+			Verb:       "Cancel",
+		}, true
+	}
+	return pendingAction{}, false
+}
+
 func availableKeys(j job) string {
 	return availableKeysForProvider(providerGitLab, j)
 }

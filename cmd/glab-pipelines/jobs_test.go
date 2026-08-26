@@ -5,6 +5,19 @@ import (
 	"time"
 )
 
+func TestResolvePipelineCancelAction(t *testing.T) {
+	p := pipeline{ID: 123, Status: "running", Ref: "main"}
+	action, ok := resolvePipelineAction("c", p)
+	if !ok || action.Target != actionTargetPipeline || action.PipelineID != p.ID || action.Endpoint != "cancel" {
+		t.Fatalf("resolvePipelineAction() = %+v, %v", action, ok)
+	}
+
+	p.Status = "success"
+	if action, ok := resolvePipelineAction("c", p); ok {
+		t.Fatalf("completed pipeline has cancel action: %+v", action)
+	}
+}
+
 func TestBuildDisplayJobsNewRunSupersedesManualJob(t *testing.T) {
 	rows := buildDisplayJobs([]job{
 		{ID: 10, Name: "deploy", Stage: "deploy", Status: "manual"},

@@ -131,6 +131,11 @@ func runProviderAction(provider ciProvider, repo string, action pendingAction) e
 	if provider == providerGitHub {
 		return runGitHubAction(repo, action)
 	}
+	if action.Target == actionTargetPipeline {
+		endpoint := fmt.Sprintf("projects/:id/pipelines/%d/cancel", action.PipelineID)
+		_, err := glabAPI(repo, "POST", endpoint)
+		return err
+	}
 	endpoint := fmt.Sprintf("projects/:id/jobs/%d/%s", action.Job.ID, action.Endpoint)
 	_, err := glabAPI(repo, "POST", endpoint)
 	return err

@@ -173,6 +173,25 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loadingList = true
 		m.message = ""
 		return m, fetchPipelinesCmd(m.provider, m.repo, m.status, m.limit, m.listRequest)
+	case "c":
+		if m.actionInFlight {
+			m.message = "an action is already in progress"
+			return m, nil
+		}
+		if len(m.list) == 0 {
+			m.message = "no pipelines loaded"
+			return m, nil
+		}
+		pipeline := m.list[m.listCursor]
+		action, ok := resolvePipelineAction(key.String(), pipeline)
+		if !ok {
+			m.message = fmt.Sprintf("action not available for pipeline #%d (%s)", pipeline.ID, pipeline.Status)
+			return m, nil
+		}
+		m.pending = &action
+		m.confirmText = ""
+		m.confirmBackMode = modePipelines
+		m.mode = modeConfirm
 	case "up", "k":
 		m.listCursor = moveUp(m.listCursor, len(m.list))
 		m = m.saveActiveLogPane()
@@ -619,7 +638,7 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch key.String() {
 		case "y":
 			action := *m.pending
-			if m.confirmBackMode == 0 {
+			if m.confirmBackMode == 0 && action.Target != actionTargetPipeline {
 				m.confirmBackMode = modeDetail
 			}
 			m.mode = m.confirmBackMode
@@ -629,8 +648,9 @@ func (m model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.actionRequest++
 			return m, runActionCmd(m.provider, m.repo, action, m.actionRequest)
 		case "n", "q", "esc":
+			action := *m.pending
 			m.pending = nil
-			if m.confirmBackMode == 0 {
+			if m.confirmBackMode == 0 && action.Target != actionTargetPipeline {
 				m.confirmBackMode = modeJobs
 			}
 			m.mode = m.confirmBackMode

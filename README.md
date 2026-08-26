@@ -98,7 +98,7 @@ Theme picker selections are saved to `~/.local/share/glab-pipelines/theme`. Acti
 
 While pipeline/run details or running job logs are being watched, a short ascending cue plays when a job succeeds and a descending cue plays when a job fails. Split panes continue watching independently.
 
-On GitLab, `s` plays or retries a job and `c` cancels that job. On GitHub, `s` reruns the selected completed job (and its dependent jobs), while `c` cancels the selected job's entire workflow run, matching the operations exposed by GitHub Actions. The code viewer shows resolved job scripts on GitLab and the workflow YAML from the run's commit on GitHub.
+On the pipeline list, `c` cancels the selected pipeline and all of its jobs. In pipeline details, GitLab uses `s` to play or retry a job and `c` to cancel that job. On GitHub, `s` reruns the selected completed job (and its dependent jobs), while `c` cancels the selected job's entire workflow run, matching the operations exposed by GitHub Actions. The code viewer shows resolved job scripts on GitLab and the workflow YAML from the run's commit on GitHub.
 
 Themes: `default`, `gruvbox-material`, `tokyo-night`, `catppuccin`, `gruvbox`, `nord`, `dracula`, `kanagawa`, `everforest`, `rose-pine`, `onedark`, `solarized-dark`, `ayu`, `material`, `nightfox`, `sonokai`, `moonfly`, `oceanic-next`, `palenight`, `monokai`, `papercolor`, `edge`.
 
@@ -108,6 +108,7 @@ Pipeline list:
 
 - `j`/`k` or arrow keys: move selection
 - `enter`: open pipeline details
+- `c`: cancel the selected pipeline and all of its jobs when available
 - `s`: split horizontally
 - `v`: split vertically
 - `ctrl+h`/`ctrl+j`/`ctrl+k`/`ctrl+l`: focus split left/down/up/right
