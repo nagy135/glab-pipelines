@@ -37,6 +37,7 @@ const (
 
 type pipeline struct {
 	ID           int        `json:"id"`
+	IID          int        `json:"iid"`
 	Status       string     `json:"status"`
 	Ref          string     `json:"ref"`
 	SHA          string     `json:"sha"`

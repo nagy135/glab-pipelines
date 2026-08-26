@@ -11,10 +11,10 @@ func TestPipelineCacheRoundTrip(t *testing.T) {
 	t.Setenv("HOME", cacheRoot)
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(cacheRoot, "cache"))
 
-	want := []pipeline{{ID: 7, Ref: "main", CommitTitle: "release"}}
+	want := []pipeline{{ID: 7, IID: 3, Ref: "main", CommitTitle: "release"}}
 	savePipelineCache("group/project", "active", 10, want)
 	got, ok := loadPipelineCache("group/project", "active", 10)
-	if !ok || len(got) != 1 || got[0].ID != 7 || got[0].Commit.Title != "release" {
+	if !ok || len(got) != 1 || got[0].ID != 7 || got[0].IID != 3 || got[0].Commit.Title != "release" {
 		t.Fatalf("loadPipelineCache() = %+v, %v", got, ok)
 	}
 
@@ -43,7 +43,7 @@ func TestPipelineCacheRejectsMismatchedMetadata(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	data := []byte(`{"version":1,"repo":"other/project","status":"active","limit":10,"pipelines":[{"id":7}]}`)
+	data := []byte(`{"version":2,"repo":"other/project","status":"active","limit":10,"pipelines":[{"id":7}]}`)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}

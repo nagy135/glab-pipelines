@@ -19,10 +19,10 @@ func fetchPipelinesCmd(provider ciProvider, repo, status string, limit int, requ
 	}
 }
 
-func fetchDetailCmd(provider ciProvider, repo string, pid, requestID, pollID int) tea.Cmd {
+func fetchDetailCmd(provider ciProvider, repo string, selected pipeline, requestID, pollID int) tea.Cmd {
 	return func() tea.Msg {
-		d, err := fetchProviderDetail(provider, repo, pid)
-		return detailMsg{pid: pid, requestID: requestID, pollID: pollID, detail: d, err: err}
+		d, err := fetchProviderDetail(provider, repo, selected)
+		return detailMsg{pid: selected.ID, requestID: requestID, pollID: pollID, detail: d, err: err}
 	}
 }
 
@@ -92,7 +92,17 @@ func (m model) requestDetail(pid int, restartPolling bool) (model, tea.Cmd) {
 	}
 	m.nextRequestID++
 	m.detailRequests[pid] = m.nextRequestID
-	return m, fetchDetailCmd(m.provider, m.repo, pid, m.nextRequestID, m.detailPolls[pid])
+	selected := pipeline{ID: pid}
+	for _, p := range m.list {
+		if p.ID == pid {
+			selected = p
+			break
+		}
+	}
+	if selected.IID == 0 && m.detail != nil && m.detail.Pipeline.ID == pid {
+		selected = m.detail.Pipeline
+	}
+	return m, fetchDetailCmd(m.provider, m.repo, selected, m.nextRequestID, m.detailPolls[pid])
 }
 
 func (m model) requestLogs(j job, restartPolling bool) (model, tea.Cmd) {

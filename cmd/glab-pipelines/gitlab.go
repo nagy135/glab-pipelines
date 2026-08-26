@@ -153,8 +153,60 @@ type gitLabPipelineConnection struct {
 	Nodes []gitLabGraphQLPipeline `json:"nodes"`
 }
 
+type gitLabGraphQLDetailResponse struct {
+	Data struct {
+		Project *struct {
+			WebURL      string                       `json:"webUrl"`
+			Pipeline    *gitLabGraphQLDetailPipeline `json:"pipeline"`
+			HistoryJobs gitLabGraphQLJobConnection   `json:"historyJobs"`
+		} `json:"project"`
+	} `json:"data"`
+	Errors []gitLabGraphQLError `json:"errors"`
+}
+
+type gitLabGraphQLDetailPipeline struct {
+	gitLabGraphQLPipeline
+	Path string                     `json:"path"`
+	Jobs gitLabGraphQLJobConnection `json:"jobs"`
+}
+
+type gitLabGraphQLJobConnection struct {
+	Nodes    []gitLabGraphQLJob `json:"nodes"`
+	PageInfo gitLabPageInfo     `json:"pageInfo"`
+}
+
+type gitLabPageInfo struct {
+	HasNextPage bool   `json:"hasNextPage"`
+	EndCursor   string `json:"endCursor"`
+}
+
+type gitLabGraphQLJob struct {
+	ID           string                    `json:"id"`
+	Name         string                    `json:"name"`
+	Status       string                    `json:"status"`
+	Stage        *gitLabGraphQLJobStage    `json:"stage"`
+	RefName      string                    `json:"refName"`
+	CreatedAt    string                    `json:"createdAt"`
+	StartedAt    string                    `json:"startedAt"`
+	FinishedAt   string                    `json:"finishedAt"`
+	Duration     *float64                  `json:"duration"`
+	AllowFailure bool                      `json:"allowFailure"`
+	Retried      bool                      `json:"retried"`
+	Pipeline     *gitLabGraphQLJobPipeline `json:"pipeline"`
+}
+
+type gitLabGraphQLJobStage struct {
+	Name string `json:"name"`
+}
+
+type gitLabGraphQLJobPipeline struct {
+	ID  string `json:"id"`
+	SHA string `json:"sha"`
+}
+
 type gitLabGraphQLPipeline struct {
 	ID        string     `json:"id"`
+	IID       string     `json:"iid"`
 	Status    string     `json:"status"`
 	Ref       string     `json:"ref"`
 	SHA       string     `json:"sha"`
@@ -184,7 +236,7 @@ func buildPipelineListGraphQLQuery(status string) (string, []string, error) {
 		}
 		fmt.Fprintf(&query, "    %s: pipelines(first: $limit, status: %s) { nodes { ...PipelineListFields } }\n", alias, statusEnum)
 	}
-	query.WriteString("  }\n}\nfragment PipelineListFields on Pipeline {\n  id\n  status\n  ref\n  sha\n  source\n  updatedAt\n  createdAt\n  startedAt\n  duration\n  commit { title }\n}\n")
+	query.WriteString("  }\n}\nfragment PipelineListFields on Pipeline {\n  id\n  iid\n  status\n  ref\n  sha\n  source\n  updatedAt\n  createdAt\n  startedAt\n  duration\n  commit { title }\n}\n")
 	return query.String(), aliases, nil
 }
 
@@ -202,8 +254,16 @@ func graphQLPipelineToPipeline(source gitLabGraphQLPipeline) (pipeline, error) {
 	if err != nil {
 		return pipeline{}, err
 	}
+	iid := 0
+	if source.IID != "" {
+		iid, err = strconv.Atoi(source.IID)
+		if err != nil || iid <= 0 {
+			return pipeline{}, fmt.Errorf("decode GitLab GraphQL pipeline IID %q", sanitizeTerminalText(source.IID))
+		}
+	}
 	p := pipeline{
 		ID:          id,
+		IID:         iid,
 		Status:      strings.ToLower(source.Status),
 		Ref:         source.Ref,
 		SHA:         source.SHA,
@@ -365,7 +425,206 @@ func fetchJob(repo string, jobID int64) (job, error) {
 	return j, nil
 }
 
-func fetchDetail(repo string, pid int) (detail, error) {
+func fetchDetail(repo string, selected pipeline) (detail, error) {
+	d, graphQLErr := fetchDetailGraphQL(repo, selected)
+	if graphQLErr == nil {
+		return d, nil
+	}
+
+	d, err := fetchDetailREST(repo, selected.ID)
+	if err != nil {
+		return detail{}, fmt.Errorf("GitLab GraphQL pipeline detail failed: %v; REST fallback failed: %w", graphQLErr, err)
+	}
+	return d, nil
+}
+
+func fetchDetailGraphQL(repo string, selected pipeline) (detail, error) {
+	pid := selected.ID
+	var d detail
+	var history []job
+	after := ""
+	firstPage := true
+
+	for {
+		query := buildPipelineDetailGraphQLQuery(selected, after, firstPage)
+		out, err := glabGraphQL(repo, query, gitLabGraphQLPageSize)
+		if err != nil {
+			return detail{}, err
+		}
+
+		var response gitLabGraphQLDetailResponse
+		if err := json.Unmarshal(out, &response); err != nil {
+			return detail{}, fmt.Errorf("decode GitLab GraphQL pipeline %d detail: %w", pid, err)
+		}
+		if len(response.Errors) > 0 {
+			messages := make([]string, 0, len(response.Errors))
+			for _, graphQLError := range response.Errors {
+				messages = append(messages, sanitizeTerminalText(graphQLError.Message))
+			}
+			return detail{}, fmt.Errorf("GitLab GraphQL pipeline %d detail: %s", pid, strings.Join(messages, "; "))
+		}
+		if response.Data.Project == nil {
+			return detail{}, gitLabGraphQLProjectNotFoundError(repo)
+		}
+		if response.Data.Project.Pipeline == nil {
+			return detail{}, fmt.Errorf("GitLab GraphQL pipeline %d was not found", pid)
+		}
+
+		pipelineNode := response.Data.Project.Pipeline
+		if firstPage {
+			p, err := graphQLPipelineToPipeline(pipelineNode.gitLabGraphQLPipeline)
+			if err != nil {
+				return detail{}, err
+			}
+			p.WebURL = gitLabPipelineWebURL(response.Data.Project.WebURL, pipelineNode.Path)
+			d.Pipeline = p
+
+			history, err = graphQLJobsToJobs(response.Data.Project.HistoryJobs.Nodes)
+			if err != nil {
+				return detail{}, err
+			}
+		}
+
+		jobs, err := graphQLJobsToJobs(pipelineNode.Jobs.Nodes)
+		if err != nil {
+			return detail{}, err
+		}
+		d.Jobs = append(d.Jobs, jobs...)
+
+		if !pipelineNode.Jobs.PageInfo.HasNextPage {
+			break
+		}
+		if pipelineNode.Jobs.PageInfo.EndCursor == "" {
+			return detail{}, fmt.Errorf("GitLab GraphQL pipeline %d jobs omitted the next-page cursor", pid)
+		}
+		after = pipelineNode.Jobs.PageInfo.EndCursor
+		firstPage = false
+	}
+
+	sort.SliceStable(d.Jobs, func(i, j int) bool { return d.Jobs[i].ID < d.Jobs[j].ID })
+	d.DisplayJobs = buildDisplayJobs(d.Jobs)
+	augmentPreviousRuns(d.DisplayJobs, history, d.Pipeline)
+	return d, nil
+}
+
+func buildPipelineDetailGraphQLQuery(selected pipeline, after string, includeHistory bool) string {
+	jobsArgs := "first: $limit"
+	if after != "" {
+		jobsArgs += ", after: " + strconv.Quote(after)
+	}
+	historyField := ""
+	if includeHistory {
+		historyField = "    historyJobs: jobs(first: $limit) { nodes { ...PipelineDetailJobFields } }\n"
+	}
+	selector := fmt.Sprintf("id: %q", fmt.Sprintf("gid://gitlab/Ci::Pipeline/%d", selected.ID))
+	if selected.IID > 0 {
+		selector = fmt.Sprintf("iid: %q", strconv.Itoa(selected.IID))
+	}
+	return fmt.Sprintf(`query PipelineDetail($fullPath: ID!, $limit: Int!) {
+  project(fullPath: $fullPath) {
+    webUrl
+    pipeline(%s) {
+      ...PipelineDetailFields
+      path
+      jobs(%s) {
+        nodes { ...PipelineDetailJobFields }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+%s  }
+}
+fragment PipelineDetailFields on Pipeline {
+  id
+  iid
+  status
+  ref
+  sha
+  source
+  updatedAt
+  createdAt
+  startedAt
+  duration
+  commit { title }
+}
+fragment PipelineDetailJobFields on CiJob {
+  id
+  name
+  status
+  stage { name }
+  refName
+  createdAt
+  startedAt
+  finishedAt
+  duration
+  allowFailure
+  retried
+  pipeline { id ... on Pipeline { sha } }
+}
+`, selector, jobsArgs, historyField)
+}
+
+func gitLabPipelineWebURL(projectWebURL, pipelinePath string) string {
+	pipelinePath = sanitizeTerminalText(pipelinePath)
+	base, err := url.Parse(projectWebURL)
+	if err != nil || base.Scheme == "" || base.Host == "" {
+		return pipelinePath
+	}
+	reference, err := url.Parse(pipelinePath)
+	if err != nil {
+		return pipelinePath
+	}
+	return sanitizeTerminalText(base.ResolveReference(reference).String())
+}
+
+func graphQLJobsToJobs(nodes []gitLabGraphQLJob) ([]job, error) {
+	jobs := make([]job, 0, len(nodes))
+	for _, node := range nodes {
+		id, err := graphQLNumericID(node.ID, "job")
+		if err != nil {
+			return nil, err
+		}
+		j := job{
+			ID:           int64(id),
+			Name:         node.Name,
+			Status:       strings.ToLower(node.Status),
+			Ref:          node.RefName,
+			CreatedAt:    node.CreatedAt,
+			StartedAt:    node.StartedAt,
+			FinishedAt:   node.FinishedAt,
+			Duration:     node.Duration,
+			AllowFailure: node.AllowFailure,
+			Retried:      node.Retried,
+		}
+		if node.Stage != nil {
+			j.Stage = node.Stage.Name
+		}
+		if node.Pipeline != nil {
+			pipelineID, err := graphQLNumericID(node.Pipeline.ID, "pipeline")
+			if err != nil {
+				return nil, err
+			}
+			j.Pipeline.ID = pipelineID
+			j.Pipeline.SHA = node.Pipeline.SHA
+		}
+		sanitizeJob(&j)
+		jobs = append(jobs, j)
+	}
+	return jobs, nil
+}
+
+func graphQLNumericID(globalID, object string) (int, error) {
+	value := globalID
+	if slash := strings.LastIndex(value, "/"); slash >= 0 {
+		value = value[slash+1:]
+	}
+	id, err := strconv.Atoi(value)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("decode GitLab GraphQL %s ID %q", object, sanitizeTerminalText(globalID))
+	}
+	return id, nil
+}
+
+func fetchDetailREST(repo string, pid int) (detail, error) {
 	var d detail
 	p, err := fetchPipeline(repo, pid)
 	if err != nil {

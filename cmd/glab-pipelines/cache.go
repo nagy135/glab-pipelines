@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const pipelineCacheVersion = 1
+const pipelineCacheVersion = 2
 
 type pipelineCache struct {
 	Version   int        `json:"version"`

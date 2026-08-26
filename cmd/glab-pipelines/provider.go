@@ -96,11 +96,11 @@ func fetchProviderPipelines(provider ciProvider, repo, status string, limit int)
 	return fetchPipelines(repo, status, limit)
 }
 
-func fetchProviderDetail(provider ciProvider, repo string, pid int) (detail, error) {
+func fetchProviderDetail(provider ciProvider, repo string, selected pipeline) (detail, error) {
 	if provider == providerGitHub {
-		return fetchGitHubDetail(repo, pid)
+		return fetchGitHubDetail(repo, selected.ID)
 	}
-	return fetchDetail(repo, pid)
+	return fetchDetail(repo, selected)
 }
 
 func fetchProviderJob(provider ciProvider, repo string, jobID int64) (job, error) {
