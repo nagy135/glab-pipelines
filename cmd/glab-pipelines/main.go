@@ -42,9 +42,11 @@ func initialModel(args []string) (model, error) {
 	}
 
 	refresh := envDurationAny([]string{"CI_TUI_REFRESH", "GLAB_TUI_REFRESH"}, 20*time.Second)
+	limit := envIntAny([]string{"CI_TUI_LIMIT", "GLAB_TUI_LIMIT"}, 10)
 	m := model{
 		status:         "active",
-		limit:          envIntAny([]string{"CI_TUI_LIMIT", "GLAB_TUI_LIMIT"}, 10),
+		limit:          limit,
+		limitCursor:    limitIndex(limit),
 		refresh:        refresh,
 		refreshCursor:  refreshIndex(refresh),
 		logRefresh:     envDurationAny([]string{"CI_TUI_LOG_REFRESH", "GLAB_TUI_LOG_REFRESH"}, 3*time.Second),
@@ -127,7 +129,7 @@ Environment:
   GLAB_TUI_THEME=gruvbox-material color theme override; preferences save to ~/.local/share/glab-pipelines
 
 Keys:
-  Pipeline list: j/k or up/down move, ctrl+n/p/f/b scroll down/up/right/left, c cancel pipeline, s/v split, ctrl+hjkl focus, x close split, o only focused split, t theme, b border, r refresh, R refetch interval, q close/quit, Q quit app
+  Pipeline list: j/k or up/down move, ctrl+n/p/f/b scroll down/up/right/left, c cancel pipeline, s/v split, ctrl+hjkl focus, x close split, o only focused split, t theme, b border, r refresh, R refetch interval, L pipeline limit, q close/quit, Q quit app
   Detail: j/k or up/down move jobs, ctrl+n/p/f/b scroll down/up/right/left, s/v split, ctrl+hjkl focus, x close split, o only focused split, t theme, b border, l logs in focused split, C code in focused split, L inline logs in focused split, S play/retry/rerun, c cancel, r refresh, R refetch interval, q close, esc back
   Jobs: j/k or up/down move, s play/retry/rerun, c cancel, l logs, C code, t theme, b border, r refresh, R refetch interval, q back
   Logs/code: j/k or ctrl+n/p scroll vertically, left/right or ctrl+f/b scroll horizontally, pgup/pgdn page, g top, G bottom, s/v split, ctrl+hjkl focus, x close split, o only focused split, / search, t theme, b border, n/N search matches, r reload, q close, esc back`)

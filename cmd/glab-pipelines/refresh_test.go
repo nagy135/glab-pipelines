@@ -34,8 +34,8 @@ func TestRefreshPickerAppliesPredefinedInterval(t *testing.T) {
 	if cmd == nil || m.mode != modeJobs || m.refresh != 30*time.Second || m.refreshBackMode != 0 {
 		t.Fatalf("applied refresh state = %+v, cmd=%v", m, cmd)
 	}
-	if m.message != "refetch interval: 30s" {
-		t.Fatalf("message = %q", m.message)
+	if m.message != "" {
+		t.Fatalf("applying refresh interval left pane message %q", m.message)
 	}
 }
 

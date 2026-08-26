@@ -15,13 +15,13 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.String() == "Q" {
 		return m, tea.Quit
 	}
-	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && m.mode != modeRefresh && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
+	if key.String() == "t" && m.mode != modeConfirm && m.mode != modeTheme && m.mode != modeRefresh && m.mode != modeLimit && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.openThemePicker(), tea.ClearScreen
 	}
-	if key.String() == "b" && m.mode != modeConfirm && m.mode != modeRefresh && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
+	if key.String() == "b" && m.mode != modeConfirm && m.mode != modeRefresh && m.mode != modeLimit && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.cycleActiveBorder(), tea.ClearScreen
 	}
-	if key.String() == "w" && m.mode != modeConfirm && m.mode != modeTheme && m.mode != modeRefresh && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
+	if key.String() == "w" && m.mode != modeConfirm && m.mode != modeTheme && m.mode != modeRefresh && m.mode != modeLimit && !((m.mode == modeLogs || m.mode == modeCode) && m.logSearchMode) {
 		return m.toggleWrap(), tea.ClearScreen
 	}
 	if key.String() == "R" && (m.mode == modePipelines || m.mode == modeDetail || m.mode == modeJobs) {
@@ -44,6 +44,40 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleThemeKey(key)
 	case modeRefresh:
 		return m.handleRefreshKey(key)
+	case modeLimit:
+		return m.handleLimitKey(key)
+	}
+	return m, nil
+}
+
+func (m model) openLimitPicker() model {
+	m.limitCursor = limitIndex(m.limit)
+	m.mode = modeLimit
+	m.message = ""
+	return m
+}
+
+func (m model) closeLimitPicker() model {
+	m.mode = modePipelines
+	m.message = ""
+	return m
+}
+
+func (m model) handleLimitKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "q", "esc":
+		return m.closeLimitPicker(), tea.ClearScreen
+	case "up", "k":
+		m.limitCursor = moveUp(m.limitCursor, len(limitOptions))
+	case "down", "j":
+		m.limitCursor = moveDown(m.limitCursor, len(limitOptions))
+	case "enter":
+		m.limit = limitOptions[m.limitCursor].Value
+		m = m.closeLimitPicker()
+		m.listRequest++
+		m.loadingList = true
+		m.message = fmt.Sprintf("loading up to %d pipelines...", m.limit)
+		return m, tea.Batch(tea.ClearScreen, fetchPipelinesCmd(m.provider, m.repo, m.status, m.limit, m.listRequest))
 	}
 	return m, nil
 }
@@ -77,7 +111,6 @@ func (m model) handleRefreshKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.refresh = refreshOptions[m.refreshCursor].Duration
 		m = m.closeRefreshPicker()
-		m.message = "refetch interval: " + m.refresh.String()
 		return m, tea.ClearScreen
 	}
 	return m, nil
@@ -213,6 +246,8 @@ func (m model) handlePipelineKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loadingList = true
 		m.message = ""
 		return m, fetchPipelinesCmd(m.provider, m.repo, m.status, m.limit, m.listRequest)
+	case "L":
+		return m.openLimitPicker(), tea.ClearScreen
 	case "c":
 		if m.actionInFlight {
 			m.message = "an action is already in progress"

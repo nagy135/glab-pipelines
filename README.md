@@ -121,6 +121,7 @@ Pipeline list:
 - `b`: cycle active border style
 - `r`: refresh
 - `R`: choose the pipeline detail refetch interval
+- `L`: choose how many pipelines to load
 - `q`: quit
 - `Q`: quit app from any screen
 

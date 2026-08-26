@@ -16,6 +16,7 @@ const (
 	modeTheme
 	modeCode
 	modeRefresh
+	modeLimit
 )
 
 const (
@@ -143,6 +144,7 @@ type model struct {
 	repo              string
 	status            string
 	limit             int
+	limitCursor       int
 	refresh           time.Duration
 	refreshCursor     int
 	refreshBackMode   int

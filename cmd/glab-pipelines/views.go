@@ -28,8 +28,46 @@ func (m model) View() string {
 		return m.viewTheme()
 	case modeRefresh:
 		return m.viewRefresh()
+	case modeLimit:
+		return m.viewLimit()
 	}
 	return ""
+}
+
+func (m model) viewLimit() string {
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+	height := m.height
+	if height <= 0 {
+		height = 24
+	}
+	contentWidth := max(28, min(44, width-10))
+
+	var b strings.Builder
+	b.WriteString(boldStyle.Render("Pipeline limit") + " " + metaPill("current", fmt.Sprintf("%d", m.limit)) + "\n")
+	b.WriteString(hintBar(keyHint("j/k", "move"), keyHint("enter", "apply"), keyHint("q", "back")) + "\n\n")
+	for i, option := range limitOptions {
+		mark := " "
+		if option.Value == m.limit {
+			mark = "*"
+		}
+		line := fmt.Sprintf("%s %-8d %s", mark, option.Value, option.Description)
+		if i == m.limitCursor {
+			b.WriteString(selectedStyle.Render(line) + "\n")
+		} else {
+			b.WriteString(line + "\n")
+		}
+	}
+
+	panel := lipgloss.NewStyle().
+		Width(contentWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(paneBorderActiveColor).
+		Render(strings.TrimRight(b.String(), "\n"))
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, panel)
 }
 
 func (m model) viewRefresh() string {
@@ -146,7 +184,7 @@ func (m model) viewPipelines() string {
 	if m.repo != "" {
 		b.WriteString(m.headerLine(metaPill("repo", m.repo)) + "\n")
 	}
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("enter", "details"), keyHint("c", "cancel"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "close/quit"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("enter", "details"), keyHint("c", "cancel"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("L", "limit"), keyHint("q", "close/quit"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
