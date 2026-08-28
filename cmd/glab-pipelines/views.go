@@ -233,7 +233,7 @@ func (m model) viewDetail() string {
 		inlineHint = "hide inline"
 	}
 	b.WriteString(m.headerLine(title) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("L", inlineHint), keyHint("S", startHint), keyHint("c", cancelHint), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "jobs"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s/v", "split"), keyHint("ctrl+hjkl", "focus"), keyHint("x", "close"), keyHint("o", "only"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("l", "logs"), keyHint("C", "code"), keyHint("u", "web"), keyHint("L", inlineHint), keyHint("S", startHint), keyHint("c", cancelHint), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "close"), keyHint("esc", "back"))) + "\n")
 	if len(m.logPanes) > 1 {
 		b.WriteString(m.viewLogSplits())
 		return b.String()
@@ -336,7 +336,7 @@ func (m model) viewJobs() string {
 	var b strings.Builder
 	startHint, cancelHint := m.jobActionHints()
 	b.WriteString(m.headerLine(breadcrumbs("Pipelines", fmt.Sprintf("Pipeline #%d", m.detailID), "Jobs")) + "\n")
-	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s", startHint), keyHint("c", cancelHint), keyHint("l", "logs"), keyHint("C", "code"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "back"))) + "\n")
+	b.WriteString(m.headerLine(hintBar(keyHint("j/k", "move"), keyHint("ctrl+npfb", "scroll"), keyHint("left/right", "h-scroll"), keyHint("w", "wrap"), keyHint("s", startHint), keyHint("c", cancelHint), keyHint("l", "logs"), keyHint("C", "code"), keyHint("u", "web"), keyHint("t", "theme"), keyHint("b", "border"), keyHint("r", "refresh"), keyHint("R", "interval"), keyHint("q", "back"))) + "\n")
 	var body strings.Builder
 	if m.message != "" {
 		body.WriteString(yellowStyle.Render(m.message) + "\n")
@@ -488,7 +488,10 @@ func (m model) viewConfirm() string {
 		b.WriteString(redStyle.Bold(true).Render("Production deploy protection") + "\n")
 		b.WriteString("Type the exact job name to confirm:\n")
 		b.WriteString(boldStyle.Render(a.Job.Name) + "\n")
-		b.WriteString(cyanStyle.Render(m.confirmText+"_") + "\n\n")
+		// A reverse-video space is a conventional terminal block cursor. An
+		// underscore looks like input text and can make the confirmation value
+		// appear to be one character longer than it is.
+		b.WriteString(cyanStyle.Render(m.confirmText) + cyanStyle.Reverse(true).Render(" ") + "\n\n")
 		b.WriteString(hintBar(keyHint("enter", "confirm"), keyHint("esc", "cancel")))
 		if m.message != "" {
 			b.WriteString("\n" + yellowStyle.Render(m.message))

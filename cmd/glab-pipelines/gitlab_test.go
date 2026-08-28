@@ -159,8 +159,22 @@ printf '%s\n' '{"data":{"project":{"webUrl":"https://gitlab.example.com/group/pr
 	if len(detail.Jobs) != 1 || detail.Jobs[0].ID != 501 || detail.Jobs[0].Stage != "deploy" {
 		t.Fatalf("jobs = %+v", detail.Jobs)
 	}
+	if detail.Jobs[0].WebURL != "https://gitlab.example.com/group/project/-/jobs/501" {
+		t.Fatalf("job web URL = %q", detail.Jobs[0].WebURL)
+	}
 	if len(detail.DisplayJobs) != 1 || detail.DisplayJobs[0].Previous == nil || detail.DisplayJobs[0].Previous.ID != 450 {
 		t.Fatalf("display jobs = %+v", detail.DisplayJobs)
+	}
+	if detail.DisplayJobs[0].Previous.WebURL != "https://gitlab.example.com/group/project/-/jobs/450" {
+		t.Fatalf("previous job web URL = %q", detail.DisplayJobs[0].Previous.WebURL)
+	}
+}
+
+func TestGitLabJobWebURLPreservesSelfHostedPath(t *testing.T) {
+	got := gitLabJobWebURL("https://gitlab.example.com/gitlab/group/project/", 501)
+	want := "https://gitlab.example.com/gitlab/group/project/-/jobs/501"
+	if got != want {
+		t.Fatalf("gitLabJobWebURL() = %q, want %q", got, want)
 	}
 }
 

@@ -44,6 +44,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case openURLMsg:
+		if msg.err != nil {
+			m.message = msg.err.Error()
+			return m, nil
+		}
+		m.message = "opened " + msg.url
+		return m, nil
 	case pipelinesMsg:
 		if msg.requestID != m.listRequest {
 			return m, nil

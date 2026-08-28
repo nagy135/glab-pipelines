@@ -62,6 +62,7 @@ type job struct {
 	Status       string   `json:"status"`
 	Stage        string   `json:"stage"`
 	Ref          string   `json:"ref"`
+	WebURL       string   `json:"web_url"`
 	CreatedAt    string   `json:"created_at"`
 	StartedAt    string   `json:"started_at"`
 	FinishedAt   string   `json:"finished_at"`
@@ -266,4 +267,9 @@ type inlineLogMsg struct {
 
 type inlineLogTickMsg struct {
 	pollID int
+}
+
+type openURLMsg struct {
+	url string
+	err error
 }

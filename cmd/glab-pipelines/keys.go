@@ -406,6 +406,8 @@ func (m model) handleDetailKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openCode(m.detail.DisplayJobs[m.jobsCursor].Current, modeDetail)
+	case "u":
+		return m.openSelectedJobURL()
 	case "p":
 		if m.detail == nil || len(m.detail.DisplayJobs) == 0 {
 			m.message = "no jobs loaded"
@@ -478,8 +480,26 @@ func (m model) handleJobsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openLogs(job, modeJobs)
 	case "C":
 		return m.openCode(m.detail.DisplayJobs[m.jobsCursor].Current, modeJobs)
+	case "u":
+		return m.openSelectedJobURL()
 	}
 	return m, nil
+}
+
+func (m model) openSelectedJobURL() (tea.Model, tea.Cmd) {
+	if m.detail == nil || len(m.detail.DisplayJobs) == 0 {
+		m.message = "no jobs loaded"
+		return m, nil
+	}
+	j := m.detail.DisplayJobs[m.jobsCursor].Current
+	if strings.TrimSpace(j.WebURL) == "" {
+		m.message = fmt.Sprintf("no web URL available for %s", j.Name)
+		return m, nil
+	}
+	return m, func() tea.Msg {
+		err := openURL(j.WebURL)
+		return openURLMsg{url: j.WebURL, err: err}
+	}
 }
 
 func (m model) openLogs(job job, backMode int) (tea.Model, tea.Cmd) {

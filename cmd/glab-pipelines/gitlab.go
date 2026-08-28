@@ -479,13 +479,13 @@ func fetchDetailGraphQL(repo string, selected pipeline) (detail, error) {
 			p.WebURL = gitLabPipelineWebURL(response.Data.Project.WebURL, pipelineNode.Path)
 			d.Pipeline = p
 
-			history, err = graphQLJobsToJobs(response.Data.Project.HistoryJobs.Nodes)
+			history, err = graphQLJobsToJobs(response.Data.Project.HistoryJobs.Nodes, response.Data.Project.WebURL)
 			if err != nil {
 				return detail{}, err
 			}
 		}
 
-		jobs, err := graphQLJobsToJobs(pipelineNode.Jobs.Nodes)
+		jobs, err := graphQLJobsToJobs(pipelineNode.Jobs.Nodes, response.Data.Project.WebURL)
 		if err != nil {
 			return detail{}, err
 		}
@@ -576,7 +576,19 @@ func gitLabPipelineWebURL(projectWebURL, pipelinePath string) string {
 	return sanitizeTerminalText(base.ResolveReference(reference).String())
 }
 
-func graphQLJobsToJobs(nodes []gitLabGraphQLJob) ([]job, error) {
+func gitLabJobWebURL(projectWebURL string, jobID int64) string {
+	base, err := url.Parse(sanitizeTerminalText(projectWebURL))
+	if err != nil || base.Scheme == "" || base.Host == "" || jobID <= 0 {
+		return ""
+	}
+	base.Path = strings.TrimRight(base.Path, "/") + "/-/jobs/" + strconv.FormatInt(jobID, 10)
+	base.RawPath = ""
+	base.RawQuery = ""
+	base.Fragment = ""
+	return sanitizeTerminalText(base.String())
+}
+
+func graphQLJobsToJobs(nodes []gitLabGraphQLJob, projectWebURL string) ([]job, error) {
 	jobs := make([]job, 0, len(nodes))
 	for _, node := range nodes {
 		id, err := graphQLNumericID(node.ID, "job")
@@ -595,6 +607,7 @@ func graphQLJobsToJobs(nodes []gitLabGraphQLJob) ([]job, error) {
 			AllowFailure: node.AllowFailure,
 			Retried:      node.Retried,
 		}
+		j.WebURL = gitLabJobWebURL(projectWebURL, j.ID)
 		if node.Stage != nil {
 			j.Stage = node.Stage.Name
 		}
@@ -827,5 +840,6 @@ func sanitizeJob(j *job) {
 	j.Status = sanitizeTerminalText(j.Status)
 	j.Stage = sanitizeTerminalText(j.Stage)
 	j.Ref = sanitizeTerminalText(j.Ref)
+	j.WebURL = sanitizeTerminalText(j.WebURL)
 	sanitizePipeline(&j.Pipeline)
 }

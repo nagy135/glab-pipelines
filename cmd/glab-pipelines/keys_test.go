@@ -182,6 +182,53 @@ func TestDetailArrowKeysMoveJobsWithoutScrolling(t *testing.T) {
 	}
 }
 
+func TestJobURLKeyOpensSelectedJobFromDetailAndJobsList(t *testing.T) {
+	for _, mode := range []int{modeDetail, modeJobs} {
+		m := model{
+			mode: mode,
+			detail: &detail{DisplayJobs: []uiJob{{Current: job{
+				ID:     501,
+				Name:   "deploy",
+				WebURL: "https://gitlab.example.com/group/project/-/jobs/501",
+			}}}},
+		}
+		key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}}
+		var updated tea.Model
+		var cmd tea.Cmd
+		if mode == modeDetail {
+			updated, cmd = m.handleDetailKey(key)
+		} else {
+			updated, cmd = m.handleJobsKey(key)
+		}
+		m = updated.(model)
+		if cmd == nil || m.mode != mode {
+			t.Fatalf("mode %d URL key returned state %+v, cmd=%v", mode, m, cmd)
+		}
+	}
+}
+
+func TestJobURLKeyReportsMissingURL(t *testing.T) {
+	m := model{
+		mode:   modeJobs,
+		detail: &detail{DisplayJobs: []uiJob{{Current: job{Name: "deploy"}}}},
+	}
+
+	updated, cmd := m.handleJobsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	m = updated.(model)
+	if cmd != nil || !strings.Contains(m.message, "no web URL available") {
+		t.Fatalf("missing URL state = %+v, cmd=%v", m, cmd)
+	}
+}
+
+func TestOpenURLMessageUpdatesStatus(t *testing.T) {
+	m := model{}
+	updated, cmd := m.Update(openURLMsg{url: "https://gitlab.example.com/group/project/-/jobs/501"})
+	m = updated.(model)
+	if cmd != nil || !strings.Contains(m.message, "opened https://gitlab.example.com") {
+		t.Fatalf("open URL message state = %+v, cmd=%v", m, cmd)
+	}
+}
+
 func TestWrapKeyTogglesFocusedPaneAndDisablesHorizontalScroll(t *testing.T) {
 	v := viewport.New(12, 5)
 	v.SetContent("a very long log line")

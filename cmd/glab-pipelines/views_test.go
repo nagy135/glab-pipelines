@@ -72,6 +72,24 @@ func TestPipelineCancelConfirmViewUsesPipelineList(t *testing.T) {
 	}
 }
 
+func TestProductionConfirmViewUsesBlockCursor(t *testing.T) {
+	m := model{
+		mode:            modeConfirm,
+		confirmBackMode: modeJobs,
+		pending: &pendingAction{
+			Job:      job{ID: 5, Name: "deploy-prod", Status: "manual"},
+			Endpoint: "play",
+			Verb:     "Play",
+		},
+		confirmText: "deploy-prod",
+	}
+
+	view := ansi.Strip(m.viewConfirm())
+	if strings.Contains(view, "deploy-prod_\n") {
+		t.Fatalf("production confirmation input still uses an underscore cursor: %q", view)
+	}
+}
+
 func TestDetailViewShowsTypicalDurationProgress(t *testing.T) {
 	started := time.Now().Add(-30 * time.Second)
 	m := model{

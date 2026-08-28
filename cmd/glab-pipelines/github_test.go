@@ -94,6 +94,7 @@ func TestGitHubRunAndJobConversion(t *testing.T) {
 		ID:           456,
 		RunID:        run.ID,
 		Name:         "test (go-1.22)",
+		HTMLURL:      "https://github.com/owner/repo/actions/runs/123/job/456",
 		WorkflowName: "CI",
 		Status:       "completed",
 		Conclusion:   "failure",
@@ -102,6 +103,9 @@ func TestGitHubRunAndJobConversion(t *testing.T) {
 	}, p)
 	if j.Status != "failed" || j.Stage != "CI" || j.Pipeline.ID != run.ID {
 		t.Fatalf("githubJobToJob() = %+v", j)
+	}
+	if j.WebURL != "https://github.com/owner/repo/actions/runs/123/job/456" {
+		t.Fatalf("job web URL = %q", j.WebURL)
 	}
 	if j.Duration == nil || *j.Duration != 30 {
 		t.Fatalf("job duration = %v, want 30", j.Duration)

@@ -43,6 +43,7 @@ type githubJob struct {
 	ID           int64  `json:"id"`
 	RunID        int    `json:"run_id"`
 	Name         string `json:"name"`
+	HTMLURL      string `json:"html_url"`
 	WorkflowName string `json:"workflow_name"`
 	HeadSHA      string `json:"head_sha"`
 	HeadBranch   string `json:"head_branch"`
@@ -236,6 +237,7 @@ func githubJobToJob(source githubJob, p pipeline) job {
 	j := job{
 		ID:         source.ID,
 		Name:       source.Name,
+		WebURL:     source.HTMLURL,
 		Status:     githubStatus(source.Status, source.Conclusion),
 		Stage:      stage,
 		Ref:        source.HeadBranch,

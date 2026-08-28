@@ -143,6 +143,7 @@ Pipeline detail:
 - `c`: cancel selected job when available
 - `l`: open logs for the selected job in the focused split
 - `C`: open the resolved code for the selected job in the focused split
+- `u`: open the selected job on GitLab or GitHub
 - `L`: toggle the latest five log lines below running and failed jobs in the focused pane (shown by default)
 - `r`: refresh
 - `R`: choose the pipeline detail refetch interval
@@ -156,6 +157,7 @@ Jobs list:
 - `c`: cancel selected job when available
 - `l`: open logs
 - `C`: open the resolved job code
+- `u`: open the selected job on GitLab or GitHub
 - `w`: toggle wrapping in the focused pane
 - `t`: open theme picker
 - `b`: cycle active border style
