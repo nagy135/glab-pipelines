@@ -82,8 +82,9 @@ func TestGitHubRunAndJobConversion(t *testing.T) {
 		HTMLURL:      "https://github.com/owner/repo/actions/runs/123",
 		Path:         ".github/workflows/ci.yml",
 	}
+	run.HeadCommit.Author.Name = "Ada Lovelace"
 	p := githubRunToPipeline(run)
-	if p.Status != "success" || p.Ref != "feature/github" || p.CommitTitle != run.DisplayTitle || p.WorkflowPath != run.Path {
+	if p.Status != "success" || p.Ref != "feature/github" || p.CommitTitle != run.DisplayTitle || p.Commit.AuthorName != "Ada Lovelace" || p.WorkflowPath != run.Path {
 		t.Fatalf("githubRunToPipeline() = %+v", p)
 	}
 	if p.Duration == nil || *p.Duration != 90 {

@@ -76,11 +76,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.requestID != m.detailRequests[msg.pid] || msg.pollID != m.detailPolls[msg.pid] {
 			return m, nil
 		}
-		if msg.err == nil && msg.detail.Pipeline.CommitTitle == "" {
+		if msg.err == nil && (msg.detail.Pipeline.CommitTitle == "" || msg.detail.Pipeline.Commit.AuthorName == "") {
 			for _, p := range m.list {
 				if p.ID == msg.pid {
-					msg.detail.Pipeline.CommitTitle = p.CommitTitle
-					msg.detail.Pipeline.Commit.Title = p.Commit.Title
+					if msg.detail.Pipeline.CommitTitle == "" {
+						msg.detail.Pipeline.CommitTitle = p.CommitTitle
+						msg.detail.Pipeline.Commit.Title = p.Commit.Title
+					}
+					if msg.detail.Pipeline.Commit.AuthorName == "" {
+						msg.detail.Pipeline.Commit.AuthorName = p.Commit.AuthorName
+					}
 					break
 				}
 			}

@@ -176,6 +176,24 @@ func TestPipelineListShowsWhenPipelineStarted(t *testing.T) {
 	}
 }
 
+func TestPipelineListShowsCommitAuthor(t *testing.T) {
+	m := model{
+		width:  180,
+		height: 20,
+		list: []pipeline{{
+			ID:     10,
+			Status: "success",
+			Ref:    "main",
+			Commit: commitInfo{AuthorName: "Ada Lovelace"},
+		}},
+	}
+
+	view := ansi.Strip(m.viewPipelines())
+	if !strings.Contains(view, "AUTHOR") || !strings.Contains(view, "Ada Lovelace") {
+		t.Fatalf("pipeline list does not show commit author: %q", view)
+	}
+}
+
 func TestConfirmViewFitsNarrowTerminal(t *testing.T) {
 	m := model{
 		mode:            modeConfirm,

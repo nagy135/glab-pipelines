@@ -11,10 +11,10 @@ func TestPipelineCacheRoundTrip(t *testing.T) {
 	t.Setenv("HOME", cacheRoot)
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(cacheRoot, "cache"))
 
-	want := []pipeline{{ID: 7, IID: 3, Ref: "main", CommitTitle: "release"}}
+	want := []pipeline{{ID: 7, IID: 3, Ref: "main", Commit: commitInfo{AuthorName: "Ada Lovelace"}, CommitTitle: "release"}}
 	savePipelineCache("group/project", "active", 10, want)
 	got, ok := loadPipelineCache("group/project", "active", 10)
-	if !ok || len(got) != 1 || got[0].ID != 7 || got[0].IID != 3 || got[0].Commit.Title != "release" {
+	if !ok || len(got) != 1 || got[0].ID != 7 || got[0].IID != 3 || got[0].Commit.Title != "release" || got[0].Commit.AuthorName != "Ada Lovelace" {
 		t.Fatalf("loadPipelineCache() = %+v, %v", got, ok)
 	}
 

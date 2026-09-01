@@ -203,14 +203,14 @@ func (m model) viewPipelines() string {
 		b.WriteString(m.renderSinglePane(body.String()))
 		return b.String()
 	}
-	body.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "STARTED", "DURATION", "TITLE")) + "\n")
+	body.WriteString(dimStyle.Render(fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %-24s %s", "ID", "STATUS", "REF", "SHA", "SOURCE", "STARTED", "DURATION", "AUTHOR", "TITLE")) + "\n")
 	now := time.Now()
 	for i, p := range m.list {
 		sha := p.SHA
 		if len(sha) > 8 {
 			sha = sha[:8]
 		}
-		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), timeAgo(p.StartedAt, now), formatPipelineDuration(p.Duration), truncate(p.CommitTitle, 72))
+		line := fmt.Sprintf("%-10s %-16s %-24s %-10s %-14s %-12s %-11s %-24s %s", fmt.Sprintf("#%d", p.ID), stripStatus(p.Status), truncate(p.Ref, 24), sha, truncate(p.Source, 14), timeAgo(p.StartedAt, now), formatPipelineDuration(p.Duration), truncate(p.Commit.AuthorName, 24), truncate(p.CommitTitle, 72))
 		if i == m.listCursor {
 			line = colorStatusInSelectedLine(line, p.Status)
 			body.WriteString(selectedStyle.Render(line) + "\n")

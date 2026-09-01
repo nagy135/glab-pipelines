@@ -205,17 +205,22 @@ type gitLabGraphQLJobPipeline struct {
 }
 
 type gitLabGraphQLPipeline struct {
-	ID        string     `json:"id"`
-	IID       string     `json:"iid"`
-	Status    string     `json:"status"`
-	Ref       string     `json:"ref"`
-	SHA       string     `json:"sha"`
-	Source    string     `json:"source"`
-	UpdatedAt string     `json:"updatedAt"`
-	CreatedAt string     `json:"createdAt"`
-	StartedAt string     `json:"startedAt"`
-	Duration  *float64   `json:"duration"`
-	Commit    commitInfo `json:"commit"`
+	ID        string              `json:"id"`
+	IID       string              `json:"iid"`
+	Status    string              `json:"status"`
+	Ref       string              `json:"ref"`
+	SHA       string              `json:"sha"`
+	Source    string              `json:"source"`
+	UpdatedAt string              `json:"updatedAt"`
+	CreatedAt string              `json:"createdAt"`
+	StartedAt string              `json:"startedAt"`
+	Duration  *float64            `json:"duration"`
+	Commit    gitLabGraphQLCommit `json:"commit"`
+}
+
+type gitLabGraphQLCommit struct {
+	Title      string `json:"title"`
+	AuthorName string `json:"authorName"`
 }
 
 func buildPipelineListGraphQLQuery(status string) (string, []string, error) {
@@ -236,7 +241,7 @@ func buildPipelineListGraphQLQuery(status string) (string, []string, error) {
 		}
 		fmt.Fprintf(&query, "    %s: pipelines(first: $limit, status: %s) { nodes { ...PipelineListFields } }\n", alias, statusEnum)
 	}
-	query.WriteString("  }\n}\nfragment PipelineListFields on Pipeline {\n  id\n  iid\n  status\n  ref\n  sha\n  source\n  updatedAt\n  createdAt\n  startedAt\n  duration\n  commit { title }\n}\n")
+	query.WriteString("  }\n}\nfragment PipelineListFields on Pipeline {\n  id\n  iid\n  status\n  ref\n  sha\n  source\n  updatedAt\n  createdAt\n  startedAt\n  duration\n  commit { title authorName }\n}\n")
 	return query.String(), aliases, nil
 }
 
@@ -262,17 +267,20 @@ func graphQLPipelineToPipeline(source gitLabGraphQLPipeline) (pipeline, error) {
 		}
 	}
 	p := pipeline{
-		ID:          id,
-		IID:         iid,
-		Status:      strings.ToLower(source.Status),
-		Ref:         source.Ref,
-		SHA:         source.SHA,
-		Source:      source.Source,
-		UpdatedAt:   source.UpdatedAt,
-		CreatedAt:   source.CreatedAt,
-		StartedAt:   source.StartedAt,
-		Duration:    source.Duration,
-		Commit:      source.Commit,
+		ID:        id,
+		IID:       iid,
+		Status:    strings.ToLower(source.Status),
+		Ref:       source.Ref,
+		SHA:       source.SHA,
+		Source:    source.Source,
+		UpdatedAt: source.UpdatedAt,
+		CreatedAt: source.CreatedAt,
+		StartedAt: source.StartedAt,
+		Duration:  source.Duration,
+		Commit: commitInfo{
+			Title:      source.Commit.Title,
+			AuthorName: source.Commit.AuthorName,
+		},
 		CommitTitle: source.Commit.Title,
 	}
 	sanitizePipeline(&p)
@@ -373,17 +381,17 @@ func enrichPipelineMetadataItem(repo string, p *pipeline) {
 			if p.CommitTitle == "" {
 				p.CommitTitle = detail.CommitTitle
 			}
+			if p.Commit.AuthorName == "" {
+				p.Commit.AuthorName = detail.Commit.AuthorName
+			}
 		}
 	}
 	if p.Commit.Title != "" {
 		p.CommitTitle = p.Commit.Title
-		return
-	}
-	if p.CommitTitle != "" {
+	} else if p.CommitTitle != "" {
 		p.Commit.Title = p.CommitTitle
-		return
 	}
-	if p.SHA == "" {
+	if p.Commit.Title != "" && p.Commit.AuthorName != "" || p.SHA == "" {
 		return
 	}
 	out, err := glabAPI(repo, "", fmt.Sprintf("projects/:id/repository/commits/%s", p.SHA))
@@ -395,8 +403,14 @@ func enrichPipelineMetadataItem(repo string, p *pipeline) {
 		return
 	}
 	commit.Title = sanitizeTerminalText(commit.Title)
-	p.Commit.Title = commit.Title
-	p.CommitTitle = commit.Title
+	commit.AuthorName = sanitizeTerminalText(commit.AuthorName)
+	if p.Commit.Title == "" {
+		p.Commit.Title = commit.Title
+		p.CommitTitle = commit.Title
+	}
+	if p.Commit.AuthorName == "" {
+		p.Commit.AuthorName = commit.AuthorName
+	}
 }
 
 func fetchPipeline(repo string, pid int) (pipeline, error) {
@@ -544,7 +558,7 @@ fragment PipelineDetailFields on Pipeline {
   createdAt
   startedAt
   duration
-  commit { title }
+  commit { title authorName }
 }
 fragment PipelineDetailJobFields on CiJob {
   id
@@ -825,6 +839,7 @@ func sanitizePipeline(p *pipeline) {
 	p.Source = sanitizeTerminalText(p.Source)
 	p.WebURL = sanitizeTerminalText(p.WebURL)
 	p.Commit.Title = sanitizeTerminalText(p.Commit.Title)
+	p.Commit.AuthorName = sanitizeTerminalText(p.Commit.AuthorName)
 	p.CommitTitle = sanitizeTerminalText(p.CommitTitle)
 	p.WorkflowPath = sanitizeTerminalText(p.WorkflowPath)
 	if p.CommitTitle == "" {

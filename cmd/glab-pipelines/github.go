@@ -33,6 +33,11 @@ type githubWorkflowRun struct {
 	RunStartedAt string `json:"run_started_at"`
 	HTMLURL      string `json:"html_url"`
 	Path         string `json:"path"`
+	HeadCommit   struct {
+		Author struct {
+			Name string `json:"name"`
+		} `json:"author"`
+	} `json:"head_commit"`
 }
 
 type githubJobsResponse struct {
@@ -202,16 +207,19 @@ func githubRunToPipeline(run githubWorkflowRun) pipeline {
 		title = run.Name
 	}
 	p := pipeline{
-		ID:           run.ID,
-		Status:       githubStatus(run.Status, run.Conclusion),
-		Ref:          run.HeadBranch,
-		SHA:          run.HeadSHA,
-		Source:       run.Event,
-		UpdatedAt:    run.UpdatedAt,
-		CreatedAt:    run.CreatedAt,
-		StartedAt:    run.RunStartedAt,
-		WebURL:       run.HTMLURL,
-		Commit:       commitInfo{Title: title},
+		ID:        run.ID,
+		Status:    githubStatus(run.Status, run.Conclusion),
+		Ref:       run.HeadBranch,
+		SHA:       run.HeadSHA,
+		Source:    run.Event,
+		UpdatedAt: run.UpdatedAt,
+		CreatedAt: run.CreatedAt,
+		StartedAt: run.RunStartedAt,
+		WebURL:    run.HTMLURL,
+		Commit: commitInfo{
+			Title:      title,
+			AuthorName: run.HeadCommit.Author.Name,
+		},
 		CommitTitle:  title,
 		WorkflowPath: run.Path,
 	}

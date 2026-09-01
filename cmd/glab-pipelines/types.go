@@ -53,7 +53,8 @@ type pipeline struct {
 }
 
 type commitInfo struct {
-	Title string `json:"title"`
+	Title      string `json:"title"`
+	AuthorName string `json:"author_name"`
 }
 
 type job struct {

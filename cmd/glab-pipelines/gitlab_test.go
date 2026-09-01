@@ -21,7 +21,7 @@ func TestBuildPipelineListGraphQLQueryActive(t *testing.T) {
 			t.Errorf("query does not include %s status: %s", statusEnum, query)
 		}
 	}
-	for _, field := range []string{"iid", "startedAt", "duration", "commit { title }"} {
+	for _, field := range []string{"iid", "startedAt", "duration", "commit { title authorName }"} {
 		if !strings.Contains(query, field) {
 			t.Errorf("query does not include %q: %s", field, query)
 		}
@@ -52,14 +52,14 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 case "$query" in
-  *"status: RUNNING"*"startedAt"*"commit { title }"*) ;;
+  *"status: RUNNING"*"startedAt"*"commit { title authorName }"*) ;;
   *) echo "unexpected query: $query" >&2; exit 1 ;;
 esac
 if [ "$full_path" != "group/project" ] || [ "$limit" != "2" ]; then
   echo "unexpected variables: fullPath=$full_path limit=$limit" >&2
   exit 1
 fi
-printf '%s\n' '{"data":{"project":{"pipelines0":{"nodes":[{"id":"gid://gitlab/Ci::Pipeline/41","iid":"31","status":"RUNNING","ref":"main","sha":"abc123","source":"push","updatedAt":"2026-08-26T17:01:00Z","createdAt":"2026-08-26T17:00:00Z","startedAt":"2026-08-26T17:00:10Z","duration":12,"commit":{"title":"Run GraphQL"}}]},"pipelines1":{"nodes":[{"id":"gid://gitlab/Ci::Pipeline/43","iid":"33","status":"PENDING","ref":"feature","sha":"def456","source":"merge_request_event","updatedAt":"2026-08-26T17:03:00Z","createdAt":"2026-08-26T17:02:00Z","startedAt":null,"duration":null,"commit":{"title":"Pending pipeline"}}]},"pipelines2":{"nodes":[]},"pipelines3":{"nodes":[]},"pipelines4":{"nodes":[]},"pipelines5":{"nodes":[]},"pipelines6":{"nodes":[]}}}}'
+printf '%s\n' '{"data":{"project":{"pipelines0":{"nodes":[{"id":"gid://gitlab/Ci::Pipeline/41","iid":"31","status":"RUNNING","ref":"main","sha":"abc123","source":"push","updatedAt":"2026-08-26T17:01:00Z","createdAt":"2026-08-26T17:00:00Z","startedAt":"2026-08-26T17:00:10Z","duration":12,"commit":{"title":"Run GraphQL","authorName":"Ada Lovelace"}}]},"pipelines1":{"nodes":[{"id":"gid://gitlab/Ci::Pipeline/43","iid":"33","status":"PENDING","ref":"feature","sha":"def456","source":"merge_request_event","updatedAt":"2026-08-26T17:03:00Z","createdAt":"2026-08-26T17:02:00Z","startedAt":null,"duration":null,"commit":{"title":"Pending pipeline","authorName":"Grace Hopper"}}]},"pipelines2":{"nodes":[]},"pipelines3":{"nodes":[]},"pipelines4":{"nodes":[]},"pipelines5":{"nodes":[]},"pipelines6":{"nodes":[]}}}}'
 `
 	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
 		t.Fatal(err)
@@ -76,8 +76,38 @@ printf '%s\n' '{"data":{"project":{"pipelines0":{"nodes":[{"id":"gid://gitlab/Ci
 	if pipelines[0].Status != "pending" || pipelines[1].Status != "running" || pipelines[0].IID != 33 || pipelines[1].IID != 31 {
 		t.Fatalf("pipeline statuses = %q, %q", pipelines[0].Status, pipelines[1].Status)
 	}
-	if pipelines[1].StartedAt != "2026-08-26T17:00:10Z" || pipelines[1].Duration == nil || *pipelines[1].Duration != 12 || pipelines[1].CommitTitle != "Run GraphQL" {
+	if pipelines[1].StartedAt != "2026-08-26T17:00:10Z" || pipelines[1].Duration == nil || *pipelines[1].Duration != 12 || pipelines[1].CommitTitle != "Run GraphQL" || pipelines[1].Commit.AuthorName != "Ada Lovelace" {
 		t.Fatalf("enriched pipeline = %+v", pipelines[1])
+	}
+}
+
+func TestEnrichPipelineMetadataFetchesCommitAuthor(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "glab")
+	contents := `#!/bin/sh
+if [ "$*" != "api -R group/project projects/:id/repository/commits/abc123" ]; then
+  echo "unexpected arguments: $*" >&2
+  exit 1
+fi
+printf '%s\n' '{"title":"Add author column","author_name":"Ada Lovelace"}'
+`
+	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+
+	duration := 12.0
+	p := pipeline{
+		ID:          41,
+		SHA:         "abc123",
+		StartedAt:   "2026-08-26T17:00:10Z",
+		Duration:    &duration,
+		Commit:      commitInfo{Title: "Add author column"},
+		CommitTitle: "Add author column",
+	}
+	enrichPipelineMetadataItem("group/project", &p)
+	if p.Commit.AuthorName != "Ada Lovelace" {
+		t.Fatalf("commit author = %q, want Ada Lovelace", p.Commit.AuthorName)
 	}
 }
 
@@ -139,7 +169,7 @@ if [ "$full_path" != "group/project" ] || [ "$limit" != "100" ]; then
   echo "unexpected variables: fullPath=$full_path limit=$limit" >&2
   exit 1
 fi
-printf '%s\n' '{"data":{"project":{"webUrl":"https://gitlab.example.com/group/project","pipeline":{"id":"gid://gitlab/Ci::Pipeline/42","iid":"7","status":"RUNNING","ref":"main","sha":"abc123","source":"push","updatedAt":"2026-08-26T17:01:00Z","createdAt":"2026-08-26T17:00:00Z","startedAt":"2026-08-26T17:00:10Z","duration":12,"path":"/group/project/-/pipelines/42","commit":{"title":"GraphQL details"},"jobs":{"nodes":[{"id":"gid://gitlab/Ci::Build/501","name":"deploy","status":"MANUAL","stage":{"name":"deploy"},"refName":"main","createdAt":"2026-08-26T17:00:00Z","startedAt":null,"finishedAt":null,"duration":null,"allowFailure":false,"retried":false,"pipeline":{"id":"gid://gitlab/Ci::Pipeline/42","sha":"abc123"}}],"pageInfo":{"hasNextPage":false,"endCursor":"cursor"}}},"historyJobs":{"nodes":[{"id":"gid://gitlab/Ci::Build/450","name":"deploy","status":"SUCCESS","stage":{"name":"deploy"},"refName":"main","createdAt":"2026-08-25T17:00:00Z","startedAt":"2026-08-25T17:00:10Z","finishedAt":"2026-08-25T17:01:10Z","duration":60,"allowFailure":false,"retried":false,"pipeline":{"id":"gid://gitlab/Ci::Pipeline/40","sha":"abc123"}}]}}}}'
+printf '%s\n' '{"data":{"project":{"webUrl":"https://gitlab.example.com/group/project","pipeline":{"id":"gid://gitlab/Ci::Pipeline/42","iid":"7","status":"RUNNING","ref":"main","sha":"abc123","source":"push","updatedAt":"2026-08-26T17:01:00Z","createdAt":"2026-08-26T17:00:00Z","startedAt":"2026-08-26T17:00:10Z","duration":12,"path":"/group/project/-/pipelines/42","commit":{"title":"GraphQL details","authorName":"Ada Lovelace"},"jobs":{"nodes":[{"id":"gid://gitlab/Ci::Build/501","name":"deploy","status":"MANUAL","stage":{"name":"deploy"},"refName":"main","createdAt":"2026-08-26T17:00:00Z","startedAt":null,"finishedAt":null,"duration":null,"allowFailure":false,"retried":false,"pipeline":{"id":"gid://gitlab/Ci::Pipeline/42","sha":"abc123"}}],"pageInfo":{"hasNextPage":false,"endCursor":"cursor"}}},"historyJobs":{"nodes":[{"id":"gid://gitlab/Ci::Build/450","name":"deploy","status":"SUCCESS","stage":{"name":"deploy"},"refName":"main","createdAt":"2026-08-25T17:00:00Z","startedAt":"2026-08-25T17:00:10Z","finishedAt":"2026-08-25T17:01:10Z","duration":60,"allowFailure":false,"retried":false,"pipeline":{"id":"gid://gitlab/Ci::Pipeline/40","sha":"abc123"}}]}}}}'
 `
 	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
 		t.Fatal(err)
@@ -150,7 +180,7 @@ printf '%s\n' '{"data":{"project":{"webUrl":"https://gitlab.example.com/group/pr
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.Pipeline.ID != 42 || detail.Pipeline.IID != 7 || detail.Pipeline.Status != "running" || detail.Pipeline.CommitTitle != "GraphQL details" {
+	if detail.Pipeline.ID != 42 || detail.Pipeline.IID != 7 || detail.Pipeline.Status != "running" || detail.Pipeline.CommitTitle != "GraphQL details" || detail.Pipeline.Commit.AuthorName != "Ada Lovelace" {
 		t.Fatalf("pipeline = %+v", detail.Pipeline)
 	}
 	if detail.Pipeline.WebURL != "https://gitlab.example.com/group/project/-/pipelines/42" {
