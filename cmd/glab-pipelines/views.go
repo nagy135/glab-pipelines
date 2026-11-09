@@ -25,11 +25,11 @@ func (m model) View() string {
 	case modeCode:
 		return m.fillScreen(m.viewCode())
 	case modeTheme:
-		return m.viewTheme()
+		return m.fillScreen(m.viewTheme())
 	case modeRefresh:
-		return m.viewRefresh()
+		return m.fillScreen(m.viewRefresh())
 	case modeLimit:
-		return m.viewLimit()
+		return m.fillScreen(m.viewLimit())
 	}
 	return ""
 }

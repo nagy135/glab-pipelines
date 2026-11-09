@@ -829,6 +829,9 @@ func renderTopLeftIndicator(body, indicator string, width int) string {
 }
 
 func renderScrollableBody(body string, width, height, offset, horizontalOffset int, wrap bool) string {
+	// Builders terminate rows with newlines. Don't let that terminator become
+	// an extra blank row when the content exactly fills the pane.
+	body = strings.TrimRight(body, "\n")
 	if wrap {
 		body = wrapContent(body, width, height)
 		horizontalOffset = 0

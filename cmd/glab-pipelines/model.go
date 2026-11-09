@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const maxTraceRetries = 3
@@ -624,5 +625,14 @@ func (m model) fillScreen(view string) string {
 	if m.height <= 0 || m.width <= 0 {
 		return view
 	}
-	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, strings.TrimRight(view, "\n"))
+	// Place pads to a minimum size; it doesn't clip oversized content. Bubble
+	// Tea v1 clips overflowing rows from the top but diffs against the original
+	// frame, so oversized frames can leave stale rows behind on later updates.
+	lines := strings.Split(strings.TrimRight(view, "\n"), "\n")
+	lines = lines[:min(len(lines), m.height)]
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], m.width, "")
+		lines[i] += strings.Repeat(" ", max(0, m.width-ansi.StringWidth(lines[i])))
+	}
+	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, strings.Join(lines, "\n"))
 }
